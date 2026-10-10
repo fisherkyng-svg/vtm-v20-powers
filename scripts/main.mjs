@@ -1,5 +1,6 @@
+import { registerElder } from './elder.mjs';
 import {
-  MODULE_ID, POWER_ITEM_TYPES, powerKey, traitLabel, normalizeConfig, isActive,
+  MODULE_ID, POWER_ITEM_TYPES, ELDER_TYPE, powerKey, traitLabel, normalizeConfig, isActive,
   targetDifficulty, resistDifficulty, contest, findPower, summarize, titleCase, defaultConfig,
 } from './logic.mjs';
 
@@ -51,7 +52,7 @@ function traitSelect(name, value, { allowEmpty = true } = {}) {
 
 async function wrappedRoll(actor, opts = {}) {
   const match = actor?.items && opts?.label ? findPower(actor.items, opts.label) : null;
-  const cfg = match ? getConfig(match.item.type, match.item.name, match.lvl) : null;
+  const cfg = match ? getConfig(...match.cfg) : null;
   if (!cfg || !isActive(cfg)) return originalRoll(actor, opts);
 
   const target = game.user.targets?.first?.()?.actor ?? null;
@@ -170,9 +171,16 @@ function onRenderMessage(message, html) {
 // ---------------------------------------------------------------------------
 // Config UI on Discipline / Path sheets
 
-async function editConfig(item, lvl) {
-  const cfg = getConfig(item.type, item.name, lvl) ?? defaultConfig();
+// Regular powers are addressed by Discipline + level; Elder powers by their own name
+function configAddress(item, lvl) {
+  if (item.type === ELDER_TYPE) return { addr: ['elder', item.name, 'elder'], title: `${item.system.discipline || 'Elder'} · ${item.name}`, scope: `the Elder power <b>${esc(item.name)}</b> on every character` };
   const power = item.system.powers?.[lvl]?.name || lvl.replace('lvl', 'Level ');
+  return { addr: [item.type, item.name, lvl], title: `${item.name} · ${power}`, scope: `<b>${esc(item.name)}</b> level ${lvl.replace('lvl', '')} on every character` };
+}
+
+async function editConfig(item, lvl) {
+  const { addr, title, scope } = configAddress(item, lvl);
+  const cfg = getConfig(...addr) ?? defaultConfig();
   const content = `<div class="vpw-form">
     <fieldset><legend>Attacker's difficulty</legend>
       <label class="vpw-row">Source <select name="diffMode">
@@ -194,9 +202,9 @@ async function editConfig(item, lvl) {
       <label class="vpw-row">+ trait ${traitSelect('resA2', cfg.resist.attackerTraits[1])}</label>
       <label class="vpw-row">Modifier <input type="number" name="resMod" value="${cfg.resist.mod}" step="1"></label>
     </fieldset>
-    <p class="vpw-sub">Applies to <b>${esc(item.name)}</b> level ${lvl.replace('lvl', '')} on every character. Ties go to the resister.</p></div>`;
+    <p class="vpw-sub">Applies to ${scope}. Ties go to the resister.</p></div>`;
   const res = await DialogV2().wait({
-    window: { title: `Contest: ${item.name} · ${power}` }, content, rejectClose: false, position: { width: 480 },
+    window: { title: `Contest: ${title}` }, content, rejectClose: false, position: { width: 480 },
     buttons: [
       { action: 'save', label: 'Save', icon: 'fas fa-check', default: true, callback: (ev, btn) => {
         const e = btn.form.elements;
@@ -210,8 +218,8 @@ async function editConfig(item, lvl) {
       { action: 'cancel', label: 'Cancel' },
     ],
   });
-  if (res === 'clear') await setConfig(item.type, item.name, lvl, null);
-  else if (res && typeof res === 'object') await setConfig(item.type, item.name, lvl, res);
+  if (res === 'clear') await setConfig(...addr, null);
+  else if (res && typeof res === 'object') await setConfig(...addr, res);
   else return;
   item.sheet?.render();
 }
@@ -245,6 +253,7 @@ Hooks.once('init', () => {
   game.settings.register(MODULE_ID, 'configs', { scope: 'world', config: false, type: Object, default: {} });
   Hooks.on('renderItemSheetV2', onRenderItemSheet);
   Hooks.on('renderChatMessageHTML', onRenderMessage);
+  registerElder({ getConfig, editConfig, traitSelect, summarize });
   game.modules.get(MODULE_ID).api = { getConfig, setConfig, editConfig, rollResist };
 });
 

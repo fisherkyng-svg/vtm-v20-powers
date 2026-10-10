@@ -4,6 +4,10 @@
 export const MODULE_ID = 'vtm-v20-powers';
 export const POWER_LEVELS = ['lvl1', 'lvl2', 'lvl3', 'lvl4', 'lvl5'];
 export const POWER_ITEM_TYPES = ['discipline', 'path'];
+// Module-defined Item subtype (Foundry namespaces it with the module id)
+export const ELDER_TYPE = `${MODULE_ID}.elderPower`;
+export const ELDER_MIN = 6;
+export const ELDER_MAX = 10;
 
 const lc = s => String(s ?? '').trim().toLowerCase();
 
@@ -93,17 +97,38 @@ export function contest(attackerTotal, defenderTotal) {
   return { attacker: a, defender: d, net: Math.abs(net), winner: net > 0 ? 'attacker' : 'defender' };
 }
 
-// Find which power a roll belongs to from the system's label "<Item>: <Power>"
+export function elderLabel(item) { return `${item.system?.discipline ?? ''}: ${item.name}`; }
+
+// Find which power a roll belongs to from the label "<Discipline>: <Power>".
+// Returns the config address too: regular powers by Discipline + level,
+// Elder powers by their own name.
 export function findPower(items, label) {
   if (!label) return null;
   for (const item of items ?? []) {
     if (!POWER_ITEM_TYPES.includes(item.type)) continue;
     for (const lvl of POWER_LEVELS) {
       const p = item.system?.powers?.[lvl];
-      if (p?.name && `${item.name}: ${p.name}` === label) return { item, lvl, power: p };
+      if (p?.name && `${item.name}: ${p.name}` === label) return { item, lvl, power: p, cfg: [item.type, item.name, lvl] };
+    }
+  }
+  for (const item of items ?? []) {
+    if (item.type === ELDER_TYPE && elderLabel(item) === label) {
+      return { item, lvl: 'elder', power: item.system, cfg: ['elder', item.name, 'elder'] };
     }
   }
   return null;
+}
+
+// Elder powers grouped under the actor's Disciplines (case-insensitive match)
+export function elderPowersFor(items, disciplineName) {
+  return (items ?? [])
+    .filter(i => i.type === ELDER_TYPE && lc(i.system?.discipline) === lc(disciplineName))
+    .sort((a, b) => (a.system.level - b.system.level) || a.name.localeCompare(b.name));
+}
+
+// Can this rating use this Elder power?
+export function elderUsable(disciplineLevel, powerLevel) {
+  return (Number(disciplineLevel) || 0) >= (Number(powerLevel) || ELDER_MIN);
 }
 
 const traitsText = (traits, mod = 0) => {

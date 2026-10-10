@@ -1,9 +1,10 @@
-# VtM V20 Powers (`vtm-v20-powers`) v0.1.0
+# VtM V20 Powers (`vtm-v20-powers`) v0.2.0
 
 Contested Discipline powers for the **Vampire: The Masquerade V20** Foundry system (`vtm-v20` ≥ 1.1.5, Foundry v13–14).
 
 - **Difficulty from the target.** A power's difficulty comes from the targeted token's traits, for example the target's permanent Willpower, or Wits + Courage.
 - **Resisted rolls.** After a successful activation, the target gets a one-click **Roll resistance** button in chat. The module then posts the winner and the net successes.
+- **Elder powers (levels 6–10).** A new **Elder Power** item type. Several can exist per level, and they're listed under their Discipline on the character sheet.
 
 ## Install
 
@@ -33,8 +34,27 @@ The setup is stored per **Discipline name + level** for the whole world. Configu
 
 If no token is targeted, the power rolls at its fixed difficulty, and you resolve any resistance by hand. A failed or botched activation posts no resist card.
 
+## Elder Powers
+
+**Build the library.** In the **Items** sidebar, click **Create Item** and choose type **Elder Power**. Set:
+
+- **Discipline**: e.g. `Dominate`. Use the exact Discipline name, so world Disciplines like Daimoinon work.
+- **Level**: 6–10.
+- **Roll**: traits, difficulty, and cost. Leave Roll empty for powers that don't roll.
+- **Description**: the rules text.
+
+**NPCs.** Drag Elder Power items onto the character. They appear under the matching Discipline on the **Advantages** tab, each with a roll button. A power is usable only when the Discipline rating is at least the power's level. Players are blocked below that rating, and the Storyteller gets a warning but can still roll.
+
+**Contest setup.** Open the power and click **Contest…**. It works the same as regular powers and is keyed by the power's name.
+
+**Player purchasing.** This is handled by the **VtM V20 XP Tracker** module (v0.2+) and is off by default. When enabled:
+
+- Buying dot 6+ includes picking one power of that level from your library.
+- Extra powers at a level the character already has cost the same as that dot again. For example, an in-clan Dominate level-6 power costs 25 XP.
+
 ## Limits
 
+- **Injected list.** The Elder powers list on the character sheet is added into the system's Disciplines markup. If a system update changes that markup, the list disappears, but the powers still roll from their own item sheet.
 - **One target only.** The first targeted token is used.
 - **Shown difficulty.** The difficulty taken from a target appears in the attacker's roll dialog, so players can learn an NPC's Willpower over time. This is by design.
 - **Label matching.** The module recognizes a power by the system's roll label (`Discipline: Power`). If a system update changes that format, configured powers quietly fall back to normal rolls.

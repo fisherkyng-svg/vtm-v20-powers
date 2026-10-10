@@ -23,3 +23,20 @@
 .vpw-resist-btn { width: 100%; min-height: 34px; font-size: 14px; cursor: pointer; }
 .vpw-outcome.attacker .vpw-verdict { color: #b5502b; }
 .vpw-outcome.defender .vpw-verdict { color: #3a7d44; }
+
+/* Elder Powers */
+.vpw-elder { display: flex; flex-direction: column; gap: 8px; padding: 6px; font-size: 14px; }
+.vpw-elder-head { display: flex; align-items: center; gap: 8px; }
+.vpw-elder-head img { flex: 0 0 48px; cursor: pointer; border: none; }
+.vpw-elder-head input { flex: 1; font-size: 18px; min-height: 34px; }
+.vpw-elder-desc { min-height: 120px; }
+.vpw-elder-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.vpw-elder-foot button { min-height: 32px; font-size: 14px; }
+.vpw-ok { color: #3a7d44; }
+.vpw-warn { color: #b5502b; }
+.vpw-elder-list { display: flex; flex-direction: column; gap: 2px; margin: 0 0 4px 28px; }
+.vpw-elder-row { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.vpw-elder-row.vpw-locked { opacity: 0.55; }
+.vpw-elder-lvl { min-width: 20px; text-align: center; font-weight: bold; border: 1px solid currentColor; border-radius: 3px; font-size: 11px; }
+.vpw-elder-name { flex: 1; cursor: pointer; }
+.vpw-elder-row button { flex: 0 0 auto; min-width: 28px; min-height: 26px; line-height: 1; }

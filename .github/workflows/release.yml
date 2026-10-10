@@ -42,7 +42,7 @@ jobs:
 
       - name: Run tests
         if: steps.check.outputs.exists == 'false'
-        run: node --test test/logic.test.mjs test/integration.test.mjs
+        run: node --test test/*.test.mjs
 
       - name: Stamp module.json
         if: steps.check.outputs.exists == 'false'
@@ -58,7 +58,7 @@ jobs:
 
       - name: Build zip
         if: steps.check.outputs.exists == 'false'
-        run: zip -r vtm-v20-powers.zip module.json README.md scripts styles
+        run: zip -r vtm-v20-powers.zip module.json README.md scripts styles templates lang
 
       - name: Publish release
         if: steps.check.outputs.exists == 'false'

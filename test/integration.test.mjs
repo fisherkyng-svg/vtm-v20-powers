@@ -35,8 +35,11 @@ function actor(name, system, items = [], owners = []) {
   return a;
 }
 const lucien = actor('Lucien', { attributes: { manipulation: 4 }, abilities: { intimidation: 3 }, willpower: { max: 5 } }, [
-  { type: 'discipline', name: 'Dominate', system: { powers: { lvl1: { name: 'Command' }, lvl2: { name: 'Mesmerize' }, lvl3: { name: 'Forgetful Mind' } } } },
+  { type: 'discipline', name: 'Dominate', system: { level: 6, powers: { lvl1: { name: 'Command' }, lvl2: { name: 'Mesmerize' }, lvl3: { name: 'Forgetful Mind' } } } },
 ], ['p1']);
+const elderA = { id: 'eA', type: 'vtm-v20-powers.elderPower', name: 'Mass Mesmerize', system: { discipline: 'Dominate', level: 6, primary: 'attributes.manipulation', secondary: 'abilities.intimidation', difficulty: 7, cost: '' } };
+const elderB = { id: 'eB', type: 'vtm-v20-powers.elderPower', name: 'Speak Through the Blood', system: { discipline: 'Dominate', level: 7, primary: 'attributes.manipulation', secondary: '', difficulty: 8, cost: '' } };
+for (const e of [elderA, elderB]) { e.parent = lucien; lucien.items.push(e); }
 const marcus = actor('Marcus', { attributes: { wits: 3 }, virtues: { courage: 2 }, willpower: { max: 8 } }, [], []);
 const vera = actor('Vera', { willpower: { max: 4 } }, [], ['p2']);
 
@@ -47,8 +50,18 @@ let currentTarget = null;
 
 Object.assign(globalThis, {
   Hooks,
-  CONFIG: { VTM: { attributes: { mental: ['wits'] }, abilities: { talents: ['intimidation'] } } },
-  foundry: { utils: { deepClone: clone }, applications: { api: { DialogV2: { wait: async () => null } } } },
+  CONFIG: { VTM: { attributes: { mental: ['wits'] }, abilities: { talents: ['intimidation'] } }, Item: { dataModels: {} } },
+  foundry: {
+    utils: { deepClone: clone },
+    data: { fields: new Proxy({}, { get: () => class { constructor(o) { this.o = o; } } }) },
+    abstract: { TypeDataModel: class {} },
+    applications: {
+      api: { DialogV2: { wait: async () => null }, HandlebarsApplicationMixin: B => class extends B {} },
+      sheets: { ItemSheetV2: class {} },
+      apps: { DocumentSheetConfig: { registerSheet: (...a) => { globalThis.__sheetReg = a; } } },
+    },
+    documents: { Item: class {} },
+  },
   ui: { notifications: { warn: m => notes.push(m), error: m => notes.push(m), info: m => notes.push(m) } },
   ChatMessage: { getSpeaker: ({ actor }) => ({ alias: actor?.name }), create: async d => makeMessage(d, game.user.id) },
   fromUuid: async u => actors[u] ?? null,
@@ -67,6 +80,7 @@ Object.defineProperty(game.user, 'targets', { get: () => ({ first: () => current
 for (const u of [p1, p2, gm]) Object.defineProperty(u, 'targets', { get: () => ({ first: () => currentTarget }) });
 
 await import('../scripts/main.mjs');
+const { rollElder } = await import('../scripts/elder.mjs');
 Hooks.callAll('init');
 Hooks.callAll('ready');
 const api = globalThis.__mod.api;
@@ -185,4 +199,40 @@ test('clearing a config restores the plain roll', async () => {
   as(p1); currentTarget = { actor: vera };
   await game.vtm.rollDicePool(lucien, { trait: 'attributes.manipulation', label: 'Dominate: Command', difficulty: 6 });
   assert.equal(rollCalls.at(-1).difficulty, 6);
+});
+
+test('Elder Power type registers its data model and sheet', () => {
+  assert.ok(CONFIG.Item.dataModels['vtm-v20-powers.elderPower']);
+  assert.deepEqual(globalThis.__sheetReg[3].types, ['vtm-v20-powers.elderPower']);
+});
+
+test('Elder roll: usable power rolls with the shared label format', async () => {
+  as(p1); currentTarget = null;
+  await rollElder(elderA);
+  assert.equal(rollCalls.at(-1).label, 'Dominate: Mass Mesmerize');
+  assert.equal(rollCalls.at(-1).difficulty, 7);
+  assert.equal(rollCalls.at(-1).trait2, 'abilities.intimidation');
+});
+
+test('Elder roll: rating too low blocks players, warns but allows Storyteller', async () => {
+  as(p1);
+  const n = rollCalls.length;
+  await rollElder(elderB); // Dominate 6, power needs 7
+  assert.equal(rollCalls.length, n);
+  assert.match(notes.at(-1), /needs 7/);
+  as(gm);
+  await rollElder(elderB);
+  assert.equal(rollCalls.length, n + 1);
+});
+
+test('Elder power uses its own contest config (resisted)', async () => {
+  as(gm);
+  await api.setConfig('elder', 'Mass Mesmerize', 'elder', { diff: { mode: 'target', traits: ['willpower', ''] }, resist: { enabled: true, traits: ['willpower', ''], diff: 6 } });
+  as(p1); currentTarget = { actor: marcus };
+  rollScript.push({ total: 4, outcome: 'success' });
+  await rollElder(elderA);
+  assert.equal(rollCalls.at(-1).difficulty, 8); // Marcus Willpower
+  const card = lastResist();
+  assert.equal(card.flags['vtm-v20-powers'].power, 'Dominate: Mass Mesmerize');
+  assert.equal(card.flags['vtm-v20-powers'].atkTotal, 4);
 });

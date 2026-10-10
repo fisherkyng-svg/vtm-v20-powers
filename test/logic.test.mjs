@@ -58,3 +58,23 @@ test('config normalization, activity, keys, summary', () => {
   assert.match(s, /Diff = target's Willpower/);
   assert.match(s, /Resisted: Willpower vs diff 7/);
 });
+
+import { ELDER_TYPE, elderPowersFor, elderUsable, elderLabel } from '../scripts/logic.mjs';
+
+test('Elder powers: label match, config address, grouping, rating gate', () => {
+  const items = [
+    { type: 'discipline', name: 'Dominate', system: { level: 6, powers: { lvl1: { name: 'Command' } } } },
+    { id: 'e2', type: ELDER_TYPE, name: 'Mass Mesmerize', system: { discipline: 'Dominate', level: 6 } },
+    { id: 'e1', type: ELDER_TYPE, name: 'Far Mastery', system: { discipline: 'dominate', level: 6 } },
+    { id: 'e3', type: ELDER_TYPE, name: 'Speak Through the Blood', system: { discipline: 'Dominate', level: 7 } },
+  ];
+  assert.equal(ELDER_TYPE, 'vtm-v20-powers.elderPower');
+  const m = findPower(items, 'Dominate: Mass Mesmerize');
+  assert.equal(m.lvl, 'elder');
+  assert.deepEqual(m.cfg, ['elder', 'Mass Mesmerize', 'elder']);
+  assert.deepEqual(findPower(items, 'Dominate: Command').cfg, ['discipline', 'Dominate', 'lvl1']);
+  assert.deepEqual(elderPowersFor(items, 'DOMINATE').map(i => i.id), ['e1', 'e2', 'e3']);
+  assert.equal(elderUsable(6, 6), true);
+  assert.equal(elderUsable(6, 7), false);
+  assert.equal(elderLabel(items[1]), 'Dominate: Mass Mesmerize');
+});
