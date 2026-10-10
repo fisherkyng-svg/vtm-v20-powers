@@ -1,0 +1,25 @@
+/* VtM V20 Powers */
+.vpw-config {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin: 4px 0;
+  font-size: 13px;
+}
+.vpw-summary { flex: 1 1 200px; opacity: 0.85; }
+.vpw-edit { flex: 0 0 auto; min-height: 28px; font-size: 13px; cursor: pointer; }
+
+.vpw-form { display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.vpw-form fieldset { display: flex; flex-direction: column; gap: 5px; }
+.vpw-form label.vpw-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.vpw-form label.vpw-row select, .vpw-form label.vpw-row input { max-width: 60%; min-height: 30px; font-size: 14px; }
+.vpw-form label.vpw-check { display: flex; align-items: center; gap: 6px; }
+.vpw-sub { opacity: 0.7; font-size: 12px; margin: 2px 0; }
+
+.vpw-card h3 { margin: 0 0 4px; font-size: 15px; }
+.vpw-card p { margin: 3px 0; }
+.vpw-resist-btn { width: 100%; min-height: 34px; font-size: 14px; cursor: pointer; }
+.vpw-outcome.attacker .vpw-verdict { color: #b5502b; }
+.vpw-outcome.defender .vpw-verdict { color: #3a7d44; }

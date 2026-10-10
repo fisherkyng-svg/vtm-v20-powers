@@ -1,0 +1,19 @@
+{
+  "id": "vtm-v20-powers",
+  "title": "VtM V20 Powers",
+  "description": "Contested Discipline powers for the Vampire: The Masquerade V20 system: difficulty taken from the targeted token's traits, and resisted rolls with a one-click resist card.",
+  "version": "0.1.0",
+  "authors": [{ "name": "CD" }],
+  "compatibility": { "minimum": "13", "verified": "14" },
+  "relationships": {
+    "systems": [
+      { "id": "vtm-v20", "type": "system", "compatibility": { "minimum": "1.1.5" } }
+    ]
+  },
+  "esmodules": ["scripts/main.mjs"],
+  "styles": ["styles/powers.css"],
+  "socket": true,
+  "url": "",
+  "manifest": "",
+  "download": ""
+}
