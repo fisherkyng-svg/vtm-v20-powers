@@ -40,3 +40,13 @@
 .vpw-elder-lvl { min-width: 20px; text-align: center; font-weight: bold; border: 1px solid currentColor; border-radius: 3px; font-size: 11px; }
 .vpw-elder-name { flex: 1; cursor: pointer; }
 .vpw-elder-row button { flex: 0 0 auto; min-width: 28px; min-height: 26px; line-height: 1; }
+
+/* Paths of Enlightenment */
+.vpw-h { margin: 6px 0 2px; font-size: 15px; }
+.vpw-sin-row .vpw-num { flex: 0 0 24px; text-align: right; font-weight: bold; }
+.vpw-sin-row input { flex: 1; max-width: none !important; }
+.vpw-sins-btn { margin-left: 6px; cursor: pointer; display: inline-flex; align-items: center; min-width: 24px; min-height: 24px; justify-content: center; }
+.vpw-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.vpw-table th, .vpw-table td { padding: 4px 6px; border-bottom: 1px solid rgba(127, 127, 127, 0.25); text-align: left; vertical-align: top; }
+.vpw-num { text-align: right; white-space: nowrap; }
+.vpw-ethics { margin-bottom: 6px; }

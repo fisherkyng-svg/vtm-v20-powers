@@ -148,3 +148,46 @@ export function summarize(cfg) {
   }
   return parts.join(' · ');
 }
+
+// ---------------------------------------------------------------------------
+// Paths of Enlightenment
+
+export const PATH_TYPE = `${MODULE_ID}.enlightenmentPath`;
+export const SIN_RATINGS = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+export const FIRST_VIRTUES = ['Conscience', 'Conviction'];
+export const SECOND_VIRTUES = ['Self-Control', 'Instinct'];
+
+// Plain, client-independent record of a Path item (what the world setting stores)
+export function pathRecord(item) {
+  const s = item.system ?? {};
+  const sins = {};
+  for (const r of SIN_RATINGS) sins[r] = String(s.sins?.[`r${r}`] ?? '');
+  return {
+    name: String(item.name ?? '').trim(),
+    conscience: FIRST_VIRTUES.includes(s.conscience) ? s.conscience : 'Conviction',
+    selfControl: SECOND_VIRTUES.includes(s.selfControl) ? s.selfControl : 'Self-Control',
+    bearing: String(s.bearing ?? '').trim(),
+    ethics: String(s.ethics ?? ''),
+    sins,
+  };
+}
+
+// Build the dropdown list: system paths first (a record with the same name
+// overrides one), then custom paths A-Z, then a fallback for any path a
+// character still uses that no longer exists, so the sheet can't reset it.
+export function mergePaths(base, records, inUse = []) {
+  const out = {};
+  const byName = new Map((records ?? []).filter(r => r?.name).map(r => [r.name, r]));
+  const entry = r => ({ virtues: { conscience: r.conscience, selfControl: r.selfControl }, bearing: r.bearing || 'Bearing' });
+  for (const [name, info] of Object.entries(base ?? {})) out[name] = byName.has(name) ? entry(byName.get(name)) : info;
+  for (const name of [...byName.keys()].sort((a, b) => a.localeCompare(b))) if (!(name in out)) out[name] = entry(byName.get(name));
+  const fallback = base?.Humanity ?? { virtues: { conscience: 'Conscience', selfControl: 'Self-Control' }, bearing: 'Normalcy' };
+  for (const name of inUse) if (name && !(name in out)) out[name] = { ...fallback, missing: true };
+  return out;
+}
+
+// Virtue labels the system stores on the actor; its Instinct frenzy rules read these
+export function virtueFlagFor(paths, pathName) {
+  const info = paths?.[pathName];
+  return info ? { conscience: info.virtues.conscience, selfControl: info.virtues.selfControl } : null;
+}

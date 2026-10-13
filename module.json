@@ -1,8 +1,8 @@
 {
   "id": "vtm-v20-powers",
   "title": "VtM V20 Powers",
-  "description": "Discipline powers for the Vampire: The Masquerade V20 system: difficulty from the targeted token's traits, resisted rolls with a one-click resist card, and Elder Power items for Discipline levels 6-10.",
-  "version": "0.2.0",
+  "description": "Discipline powers and content for the Vampire: The Masquerade V20 system: difficulty from the targeted token's traits, resisted rolls, Elder Power items for Discipline levels 6-10, and custom Paths of Enlightenment.",
+  "version": "0.3.0",
   "authors": [
     {
       "name": "CD"
@@ -38,6 +38,11 @@
       "elderPower": {
         "htmlFields": [
           "description"
+        ]
+      },
+      "enlightenmentPath": {
+        "htmlFields": [
+          "ethics"
         ]
       }
     }

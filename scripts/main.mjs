@@ -1,4 +1,5 @@
 import { registerElder } from './elder.mjs';
+import { registerPaths } from './paths.mjs';
 import {
   MODULE_ID, POWER_ITEM_TYPES, ELDER_TYPE, powerKey, traitLabel, normalizeConfig, isActive,
   targetDifficulty, resistDifficulty, contest, findPower, summarize, titleCase, defaultConfig,
@@ -254,6 +255,7 @@ Hooks.once('init', () => {
   Hooks.on('renderItemSheetV2', onRenderItemSheet);
   Hooks.on('renderChatMessageHTML', onRenderMessage);
   registerElder({ getConfig, editConfig, traitSelect, summarize });
+  registerPaths();
   game.modules.get(MODULE_ID).api = { getConfig, setConfig, editConfig, rollResist };
 });
 

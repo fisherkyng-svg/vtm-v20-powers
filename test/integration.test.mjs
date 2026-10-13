@@ -58,7 +58,7 @@ Object.assign(globalThis, {
     applications: {
       api: { DialogV2: { wait: async () => null }, HandlebarsApplicationMixin: B => class extends B {} },
       sheets: { ItemSheetV2: class {} },
-      apps: { DocumentSheetConfig: { registerSheet: (...a) => { globalThis.__sheetReg = a; } } },
+      apps: { DocumentSheetConfig: { registerSheet: (...a) => { (globalThis.__sheetRegs ??= []).push(a); } } },
     },
     documents: { Item: class {} },
   },
@@ -203,7 +203,9 @@ test('clearing a config restores the plain roll', async () => {
 
 test('Elder Power type registers its data model and sheet', () => {
   assert.ok(CONFIG.Item.dataModels['vtm-v20-powers.elderPower']);
-  assert.deepEqual(globalThis.__sheetReg[3].types, ['vtm-v20-powers.elderPower']);
+  assert.ok(globalThis.__sheetRegs.some(a => a[3].types[0] === 'vtm-v20-powers.elderPower'));
+  assert.ok(globalThis.__sheetRegs.some(a => a[3].types[0] === 'vtm-v20-powers.enlightenmentPath'));
+  assert.ok(CONFIG.Item.dataModels['vtm-v20-powers.enlightenmentPath']);
 });
 
 test('Elder roll: usable power rolls with the shared label format', async () => {

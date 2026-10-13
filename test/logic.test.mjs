@@ -78,3 +78,37 @@ test('Elder powers: label match, config address, grouping, rating gate', () => {
   assert.equal(elderUsable(6, 7), false);
   assert.equal(elderLabel(items[1]), 'Dominate: Mass Mesmerize');
 });
+
+import { PATH_TYPE, pathRecord, mergePaths, virtueFlagFor } from '../scripts/logic.mjs';
+
+const BASE = {
+  Humanity: { virtues: { conscience: 'Conscience', selfControl: 'Self-Control' }, bearing: 'Normalcy' },
+  'Path of the Beast': { virtues: { conscience: 'Conviction', selfControl: 'Instinct' }, bearing: 'Menace' },
+};
+const evil = pathRecord({ name: ' Path of Evil Revelations ', system: { conscience: 'Conviction', selfControl: 'Instinct', bearing: 'Corruption', sins: { r10: 'a', r1: 'z' } } });
+
+test('pathRecord normalizes name, virtues, sins', () => {
+  assert.equal(PATH_TYPE, 'vtm-v20-powers.enlightenmentPath');
+  assert.equal(evil.name, 'Path of Evil Revelations');
+  assert.equal(evil.sins[10], 'a');
+  assert.equal(evil.sins[5], '');
+  assert.equal(pathRecord({ name: 'X', system: { conscience: 'bogus' } }).conscience, 'Conviction');
+});
+
+test('mergePaths: built-ins first, custom A-Z, override by exact name, in-use fallback', () => {
+  const zed = { ...evil, name: 'Path of Zed' };
+  const beast = { ...evil, name: 'Path of the Beast', bearing: 'Hunger' };
+  const m = mergePaths(BASE, [zed, evil, beast], ['Path of Gone']);
+  assert.deepEqual(Object.keys(m), ['Humanity', 'Path of the Beast', 'Path of Evil Revelations', 'Path of Zed', 'Path of Gone']);
+  assert.equal(m['Path of the Beast'].bearing, 'Hunger');
+  assert.deepEqual(m['Path of Evil Revelations'].virtues, { conscience: 'Conviction', selfControl: 'Instinct' });
+  assert.equal(m['Path of Gone'].missing, true);
+  assert.equal(m['Path of Gone'].bearing, 'Normalcy');
+  assert.equal(Object.keys(mergePaths(BASE, [], ['Humanity'])).length, 2);
+});
+
+test('virtueFlagFor gives the labels the system reads for Instinct frenzy', () => {
+  const m = mergePaths(BASE, [evil]);
+  assert.deepEqual(virtueFlagFor(m, 'Path of Evil Revelations'), { conscience: 'Conviction', selfControl: 'Instinct' });
+  assert.equal(virtueFlagFor(m, 'Nope'), null);
+});
