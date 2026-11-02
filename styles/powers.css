@@ -50,3 +50,7 @@
 .vpw-table th, .vpw-table td { padding: 4px 6px; border-bottom: 1px solid rgba(127, 127, 127, 0.25); text-align: left; vertical-align: top; }
 .vpw-num { text-align: right; white-space: nowrap; }
 .vpw-ethics { margin-bottom: 6px; }
+
+/* Elder rows can be dragged to the Items sidebar or another sheet */
+.vpw-elder-row[draggable="true"] { cursor: grab; }
+.vpw-elder-row[draggable="true"]:active { cursor: grabbing; }

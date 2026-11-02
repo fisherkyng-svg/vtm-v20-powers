@@ -146,11 +146,15 @@ function defineSheet() {
 
 function elderRow(p, rating) {
   const ok = elderUsable(rating, p.system.level);
-  return `<div class="vpw-elder-row ${ok ? '' : 'vpw-locked'}" data-elder-id="${p.id}">
+  return `<div class="vpw-elder-row ${ok ? '' : 'vpw-locked'}" data-elder-id="${p.id}" draggable="true" title="Drag to the Items sidebar or another sheet">
     <span class="vpw-elder-lvl">${p.system.level}</span>
     <a class="vpw-elder-name" data-vpw="open" title="Open">${esc(p.name)}</a>
     <button type="button" data-vpw="roll" title="${ok ? (p.system.primary ? 'Roll' : 'Use') : `Needs ${p.system.discipline} ${p.system.level}`}"><i class="fas fa-dice-d20"></i></button>
   </div>`;
+}
+
+export function elderDragData(item) {
+  return typeof item.toDragData === 'function' ? item.toDragData() : { type: 'Item', uuid: item.uuid };
 }
 
 function onRenderActorSheet(app, element) {
@@ -184,6 +188,15 @@ function onRenderActorSheet(app, element) {
     lastDiscRow.parentElement.append(list);
   }
   for (const list of root.querySelectorAll('.vpw-elder-list')) {
+    // Drag out to the Items sidebar (makes a world copy) or onto another actor
+    list.addEventListener('dragstart', ev => {
+      const row = ev.target.closest?.('[data-elder-id]');
+      const item = row && actor.items.get(row.dataset.elderId);
+      if (!item || !ev.dataTransfer) return;
+      ev.stopPropagation();
+      ev.dataTransfer.setData('text/plain', JSON.stringify(elderDragData(item)));
+      ev.dataTransfer.effectAllowed = 'copy';
+    });
     list.addEventListener('click', ev => {
       const btn = ev.target.closest('[data-vpw]');
       if (!btn) return;

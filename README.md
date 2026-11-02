@@ -46,6 +46,8 @@ If no token is targeted, the power rolls at its fixed difficulty, and you resolv
 
 **NPCs.** Drag Elder Power items onto the character. They appear under the matching Discipline on the **Advantages** tab, each with a roll button. A power is usable only when the Discipline rating is at least the power's level. Players are blocked below that rating, and the Storyteller gets a warning but can still roll.
 
+**Copying out.** Drag an Elder power row off a character sheet onto the Items sidebar to make a world library copy, or onto another character to give them one. Copies are independent.
+
 **Contest setup.** Open the power and click **Contest…**. It works the same as regular powers and is keyed by the power's name.
 
 **Player purchasing.** This is handled by the **VtM V20 XP Tracker** module (v0.2+) and is off by default. When enabled:
