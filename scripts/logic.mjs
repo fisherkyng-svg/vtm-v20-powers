@@ -320,3 +320,112 @@ export function advanceExtended(state, result, cfg) {
 export function extendedKey(actorUuid, cfgAddr, targetUuid) {
   return [actorUuid, ...cfgAddr, targetUuid || 'none'].join('|');
 }
+
+// ---------------------------------------------------------------------------
+// Storyteller roll requests: one card, a row per character (players and
+// companions), single / extended (each on their own) / teamwork (shared).
+// Companions can have their own row or assist a character's row.
+
+export const REQUEST_TYPES = ['single', 'extended', 'team'];
+
+export function newRequest(o) {
+  const type = REQUEST_TYPES.includes(o.type) ? o.type : 'single';
+  const rows = [];
+  const idFor = new Map();
+  (o.rows ?? []).forEach((r, i) => { const id = `r${i + 1}`; idFor.set(r.actorUuid, id); });
+  (o.rows ?? []).forEach((r, i) => {
+    const parent = r.assists ? idFor.get(r.assists) : null;
+    rows.push({
+      id: `r${i + 1}`, actorUuid: r.actorUuid, name: r.name, companion: !!r.companion,
+      role: parent && type !== 'team' ? 'assist' : 'main', parent: parent && type !== 'team' ? parent : null,
+      total: 0, gained: 0, rolls: 0, status: 'open', last: null, log: [],
+    });
+  });
+  return {
+    label: String(o.label ?? '').trim(), attr: o.attr || '', ability: o.ability || '',
+    difficulty: clampDiff(o.difficulty), type,
+    goal: Math.max(1, Math.trunc(Number(o.goal) || 1)),
+    onFail: o.onFail === 'reset' ? 'reset' : 'keep',
+    onBotch: o.onBotch === 'lock' ? 'lock' : 'reset',
+    maxRolls: Math.max(0, Math.trunc(Number(o.maxRolls) || 0)),
+    status: 'open',
+    team: { total: 0, rolls: 0, status: 'open' },
+    rows,
+  };
+}
+
+const findRow = (s, id) => s.rows.find(r => r.id === id);
+
+// Can this row roll right now? { ok, reason }
+export function requestRollable(s, rowId) {
+  const row = findRow(s, rowId);
+  if (!row) return { ok: false, reason: 'not on this request' };
+  if (s.status !== 'open') return { ok: false, reason: 'the request is closed' };
+  if (row.status === 'locked') return { ok: false, reason: 'locked after a botch' };
+  if (s.type === 'single') return row.rolls ? { ok: false, reason: 'already rolled' } : { ok: true };
+  if (s.type === 'team') return s.team.status === 'open' ? { ok: true } : { ok: false, reason: `the team is ${s.team.status === 'done' ? 'done' : 'out of rolls'}` };
+  const owner = row.role === 'assist' ? findRow(s, row.parent) : row;
+  if (owner.status !== 'open') return { ok: false, reason: owner.status === 'done' ? 'goal already reached' : owner.status === 'out' ? 'out of rolls' : 'locked after a botch' };
+  return { ok: true };
+}
+
+// Apply one roll ({ total, outcome }) to a request; returns the new state
+export function applyRequestRoll(state, rowId, result) {
+  const s = JSON.parse(JSON.stringify(state));
+  if (!requestRollable(s, rowId).ok) return s;
+  const row = findRow(s, rowId);
+  const outcome = result?.outcome ?? 'failure';
+  const succ = outcome === 'success' ? Math.max(0, Number(result.total) || 0) : 0;
+  row.rolls += 1;
+  row.last = { outcome, total: succ };
+  let note = '';
+
+  if (s.type === 'single') {
+    row.total = succ;
+    row.status = 'rolled';
+  } else if (s.type === 'team') {
+    const t = s.team;
+    t.rolls += 1;
+    row.gained += succ;
+    if (outcome === 'success') t.total += succ;
+    else if (outcome === 'botch') {
+      t.total = 0; note = 'botch: team total reset';
+      if (s.onBotch === 'lock') { row.status = 'locked'; note += `, ${row.name} locked out`; }
+    } else if (s.onFail === 'reset') { t.total = 0; note = 'failure: team total reset'; }
+    if (t.total >= s.goal) { t.status = 'done'; note = 'goal reached'; }
+    else if (s.maxRolls && t.rolls >= s.maxRolls) { t.status = 'out'; note = note ? `${note}; out of rolls` : 'out of rolls'; }
+    row.total = t.total;
+  } else {
+    const owner = row.role === 'assist' ? findRow(s, row.parent) : row;
+    row.gained += succ;
+    if (outcome === 'success') owner.total += succ;
+    else if (outcome === 'botch') {
+      owner.total = 0;
+      if (s.onBotch === 'lock') { owner.status = 'locked'; note = 'botch: locked'; } else note = 'botch: total reset';
+    } else if (s.onFail === 'reset' && row.role === 'main') { owner.total = 0; note = 'failure: total reset'; }
+    if (owner.status === 'open' && owner.total >= s.goal) { owner.status = 'done'; note = 'goal reached'; }
+    else if (owner.status === 'open' && row.role === 'main' && s.maxRolls && owner.rolls >= s.maxRolls) { owner.status = 'out'; note = note ? `${note}; out of rolls` : 'out of rolls'; }
+  }
+  const logRow = s.type === 'extended' && row.role === 'assist' ? findRow(s, row.parent) : row;
+  logRow.log = [...logRow.log, { by: row.name, outcome, succ, total: s.type === 'team' ? s.team.total : logRow.total, note }].slice(-10);
+  if (s.type === 'team') s.teamLog = [...(s.teamLog ?? []), { by: row.name, outcome, succ, total: s.team.total, note }].slice(-12);
+  return s;
+}
+
+// Single-roll total for a main row, including assists
+export function singleTotal(s, rowId) {
+  return s.rows.filter(r => r.id === rowId || r.parent === rowId).reduce((n, r) => n + (r.total || 0), 0);
+}
+
+export function clearRequestLock(state, rowId) {
+  const s = JSON.parse(JSON.stringify(state));
+  const row = findRow(s, rowId);
+  if (row?.status === 'locked') row.status = 'open';
+  return s;
+}
+
+export function removeRequestRow(state, rowId) {
+  const s = JSON.parse(JSON.stringify(state));
+  s.rows = s.rows.filter(r => r.id !== rowId && r.parent !== rowId);
+  return s;
+}

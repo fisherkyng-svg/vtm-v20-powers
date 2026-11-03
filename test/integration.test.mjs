@@ -30,7 +30,7 @@ function makeMessage(data, author) {
 
 const actors = {};
 function actor(name, system, items = [], owners = []) {
-  const a = { name, system, items, uuid: `Actor.${name}`, owners, get isOwner() { return game.user.isGM || owners.includes(game.user.id); } };
+  const a = { name, system, items, uuid: `Actor.${name}`, owners, get isOwner() { return game.user.isGM || owners.includes(game.user.id); }, testUserPermission(u) { return !!u?.isGM || owners.includes(u?.id); } };
   actors[a.uuid] = a;
   return a;
 }
@@ -68,7 +68,7 @@ Object.assign(globalThis, {
   fromUuidSync: u => actors[u] ?? null,
   game: {
     system: { id: 'vtm-v20' }, user: p1,
-    users: { get activeGM() { return { isSelf: game.user.isGM }; } },
+    users: { get activeGM() { return { isSelf: game.user.isGM }; }, get: id => [gm, p1, p2].find(u => u.id === id) },
     settings: { register() {}, registerMenu() {}, get: (m, k) => settings[`${m}.${k}`], set: async (m, k, v) => { settings[`${m}.${k}`] = v; } },
     modules: { get: () => (globalThis.__mod ??= {}) },
     messages: { get: id => messages.find(m => m.id === id), get contents() { return messages; } },
@@ -341,4 +341,100 @@ test('extended summary and activity', async () => {
   const c = normalizeConfig({ extended: { enabled: true, goalMode: 'fixed', goal: 4, onBotch: 'lock' } });
   assert.equal(isActive(c), true);
   assert.match(summarize(c), /Extended: goal 4 \(botch locks for the scene\)/);
+});
+
+// ---- Storyteller roll requests ---------------------------------------------
+const lastReq = () => [...messages].reverse().find(m => m.flags?.[EXT]?.kind === 'request');
+function renderReq(msg) {
+  const slot = { innerHTML: '', btns: [], querySelectorAll(sel) {
+    if (sel !== '[data-req]') return [];
+    this.btns = [...this.innerHTML.matchAll(/data-req="(\w+)"(?: data-row="(\w+)")?/g)].map(m => ({
+      dataset: { req: m[1], row: m[2] }, disabled: false, addEventListener(_, f) { this.click = () => f({ preventDefault() {} }); },
+    }));
+    return this.btns;
+  } };
+  const root = { querySelector: s => (s === '.vpw-req-slot' ? slot : null) };
+  Object.setPrototypeOf(root, HTMLElement.prototype);
+  hooks.renderChatMessageHTML[0](msg, root);
+  return slot;
+}
+const flush = () => new Promise(r => setTimeout(r, 0));
+const reqState = () => lastReq().flags[EXT].state;
+
+test('request: GM creates a teamwork request with a companion row', async () => {
+  as(gm);
+  await api.createRequest({ label: 'Research', attr: 'attributes.intelligence', ability: 'abilities.occult', type: 'team',
+    difficulty: 7, goal: 5, onFail: 'keep', onBotch: 'lock', maxRolls: '',
+    pcs: ['Actor.Lucien', 'Actor.Vera'], npcs: [{ uuid: 'Actor.Marcus', assists: '' }] });
+  const s = reqState();
+  assert.deepEqual(s.rows.map(r => [r.name, r.role, r.companion]), [['Lucien', 'main', false], ['Vera', 'main', false], ['Marcus', 'main', true]]);
+  assert.equal(s.difficulty, 7);
+});
+
+test('request: each player sees a Roll button only on their own rows', () => {
+  as(p1);
+  const btns = renderReq(lastReq()).btns.filter(b => b.dataset.req === 'roll').map(b => b.dataset.row);
+  assert.deepEqual(btns, ['r1']);
+  as(gm);
+  const gmBtns = renderReq(lastReq()).btns;
+  assert.deepEqual(gmBtns.filter(b => b.dataset.req === 'roll').map(b => b.dataset.row), ['r1', 'r2', 'r3']);
+  assert.ok(gmBtns.some(b => b.dataset.req === 'close'));
+});
+
+test('request: player roll uses the requested pool and reaches the GM over the socket', async () => {
+  as(p1);
+  const n = emitted.length;
+  rollScript.push({ total: 3, outcome: 'success' });
+  renderReq(lastReq()).btns.find(b => b.dataset.req === 'roll').click();
+  await flush();
+  const call = rollCalls.at(-1);
+  assert.deepEqual([call.actor, call.trait, call.trait2, call.difficulty, call.label], ['Lucien', 'attributes.intelligence', 'abilities.occult', 7, 'Research']);
+  const sent = emitted.slice(n).find(e => e[1].action === 'request');
+  assert.ok(sent);
+  as(gm);
+  globalThis.__sock(sent[1]);
+  await flush(); await flush();
+  assert.equal(reqState().team.total, 3);
+});
+
+test('request: GM ignores a roll for a character the sender does not own', async () => {
+  as(gm);
+  globalThis.__sock({ action: 'request', msgId: lastReq().id, rowId: 'r1', result: { total: 9, outcome: 'success' }, userId: 'p2' });
+  await flush(); await flush();
+  assert.equal(reqState().team.total, 3);
+});
+
+test('request: simultaneous teamwork results are applied in order and finish the goal', async () => {
+  as(gm);
+  const id = lastReq().id;
+  globalThis.__sock({ action: 'request', msgId: id, rowId: 'r2', result: { total: 1, outcome: 'success' }, userId: 'p2' });
+  globalThis.__sock({ action: 'request', msgId: id, rowId: 'r2', result: { total: 1, outcome: 'success' }, userId: 'p2' });
+  await flush(); await flush(); await flush();
+  const s = reqState();
+  assert.equal(s.team.total, 5);
+  assert.equal(s.team.status, 'done');
+  assert.match(renderReq(lastReq()).innerHTML, /Goal reached/);
+});
+
+test('request: extended with an assisting companion, GM close', async () => {
+  as(gm);
+  await api.createRequest({ label: 'Track', attr: 'attributes.perception', ability: '', type: 'extended', difficulty: 6, goal: 4,
+    onFail: 'reset', onBotch: 'reset', maxRolls: '2', pcs: ['Actor.Lucien'], npcs: [{ uuid: 'Actor.Marcus', assists: 'Actor.Lucien' }] });
+  const id = lastReq().id;
+  rollScript.push({ total: 2, outcome: 'success' }, { total: 1, outcome: 'success' });
+  for (const row of ['r1', 'r2']) renderReq(lastReq()).btns.find(b => b.dataset.req === 'roll' && b.dataset.row === row).click(), await flush(), await flush();
+  let s = reqState();
+  assert.equal(s.rows[0].total, 3);
+  assert.match(renderReq(lastReq()).innerHTML, /assisting Lucien/);
+  renderReq(lastReq()).btns.find(b => b.dataset.req === 'close').click();
+  await flush(); await flush();
+  assert.equal(reqState().status, 'closed');
+  assert.equal(lastReq().id, id);
+});
+
+test('request: an assist pointing at an unticked character becomes its own row', async () => {
+  as(gm);
+  await api.createRequest({ type: 'single', attr: 'attributes.wits', ability: '', difficulty: 6, pcs: ['Actor.Vera'], npcs: [{ uuid: 'Actor.Marcus', assists: 'Actor.Lucien' }] });
+  assert.deepEqual(reqState().rows.map(r => r.role), ['main', 'main']);
+  assert.match(notes.at(-1), /isn't on the request/);
 });

@@ -1,6 +1,7 @@
 import { registerElder } from './elder.mjs';
 import { registerPaths } from './paths.mjs';
 import { setupExtended, checkLock, recordRoll, renderTracker, onExtendedSocket, takeForcedTarget } from './extended.mjs';
+import { registerRequests, renderRequest, onRequestSocket, openRequestWindow, createRequest } from './requests.mjs';
 import { registerOverrides, decorateRow, applyStats, editStats, allStats } from './overrides.mjs';
 import {
   MODULE_ID, POWER_ITEM_TYPES, ELDER_TYPE, powerKey, traitLabel, normalizeConfig, isActive,
@@ -149,6 +150,7 @@ async function markResolved(message, defTotal) {
 
 function onSocket(data) {
   if (onExtendedSocket(data)) return;
+  if (onRequestSocket(data)) return;
   if (data?.action !== 'resolve') return;
   if (!game.users.activeGM?.isSelf) return; // exactly one GM client writes
   const msg = game.messages.get(data.msgId);
@@ -160,6 +162,7 @@ function onSocket(data) {
 function onRenderMessage(message, html) {
   const f = flagsOf(message);
   if (f?.kind === 'extended') return renderTracker(message, html instanceof HTMLElement ? html : html?.[0]);
+  if (f?.kind === 'request') return renderRequest(message, html instanceof HTMLElement ? html : html?.[0]);
   if (f?.kind !== 'resist') return;
   const root = html instanceof HTMLElement ? html : html?.[0];
   const slot = root?.querySelector('.vpw-resist-slot');
@@ -310,7 +313,8 @@ Hooks.once('init', () => {
   registerPaths();
   registerOverrides({ traitSelect, keepEnabled, allConfigs });
   setupExtended({ SOCKET });
-  game.modules.get(MODULE_ID).api = { getConfig, setConfig, editConfig, rollResist, applyStats, editStats, allStats };
+  registerRequests({ socket: SOCKET });
+  game.modules.get(MODULE_ID).api = { getConfig, setConfig, editConfig, rollResist, applyStats, editStats, allStats, requestRoll: openRequestWindow, createRequest };
 });
 
 Hooks.once('ready', () => {

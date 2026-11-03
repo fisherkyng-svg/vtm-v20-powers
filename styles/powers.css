@@ -73,3 +73,15 @@
 .vpw-ext-log li { display: flex; justify-content: space-between; gap: 6px; }
 .vpw-ext-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
 .vpw-ext-buttons button { flex: 1 1 auto; min-height: 34px; font-size: 14px; cursor: pointer; }
+
+/* Storyteller roll requests */
+.vpw-request fieldset { gap: 4px; }
+.vpw-request .vpw-check { min-height: 28px; }
+.vpw-companion { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }
+.vpw-companion select { max-width: 60%; min-height: 30px; font-size: 14px; }
+.vpw-req-pool { margin: 2px 0 4px; }
+.vpw-req-rows { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.vpw-req-row { border-top: 1px solid rgba(0, 0, 0, 0.2); padding-top: 4px; }
+.vpw-req-assist { margin-left: 16px; border-top-style: dashed; }
+.vpw-req-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; font-size: 14px; }
+.vpw-req-remove { flex: 0 0 auto !important; min-width: 34px; }

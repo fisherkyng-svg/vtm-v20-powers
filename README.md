@@ -1,10 +1,11 @@
-# VtM V20 Powers (`vtm-v20-powers`) v0.5.0
+# VtM V20 Powers (`vtm-v20-powers`) v0.6.0
 
 Contested Discipline powers for the **Vampire: The Masquerade V20** Foundry system (`vtm-v20` ≥ 1.1.5, Foundry v13–14).
 
 - **Difficulty from the target.** A power's difficulty comes from the targeted token's traits, for example the target's permanent Willpower, or Wits + Courage.
 - **Resisted rolls.** After a successful activation, the target gets a one-click **Roll resistance** button in chat. The module then posts the winner and the net successes.
 - **Elder powers (levels 6–10).** A new **Elder Power** item type. Several can exist per level, and they're listed under their Discipline on the character sheet.
+- **Storyteller roll requests.** Ask players, and NPC companions travelling with them, for a single, extended, or teamwork roll from one button. One card tracks everyone.
 - **Extended actions.** Powers like Quell the Beast build successes across rolls toward a goal on one chat tracker card, with reset-on-failure and lock-on-botch rules.
 - **Discipline stat overrides.** Your own Diff, roll traits, and cost for any Discipline power. They beat the system compendium (which rebuilds itself from code) and every character's copy.
 - **Paths of Enlightenment.** A new **Path of Enlightenment** item type. Custom paths join every sheet's path list with their own virtues, bearing, ethics, and Hierarchy of Sins.
@@ -36,6 +37,33 @@ The setup is stored per **Discipline name + level** for the whole world. Configu
 4. The result card shows both success counts and who won by how many. **Ties go to the resister.**
 
 If no token is targeted, the power rolls at its fixed difficulty, and you resolve any resistance by hand. A failed or botched activation posts no resist card.
+
+## Storyteller roll requests
+
+**Open it.** Click the **Request Roll** dice button in the left-hand scene controls, under the Token tools (GM only). You can also run the macro `game.modules.get('vtm-v20-powers').api.requestRoll()`.
+
+**Fill it in.**
+
+| Field | |
+|---|---|
+| Label | Optional, e.g. "Research the catalogue" |
+| Players | Tick characters, shown as "Character (Player)". Selected tokens come pre-ticked. |
+| Companions | NPCs from an Actors folder named **Companions**, plus NPC tokens on the current scene. Each one is **Own row** or **Assists → character**. |
+| Attribute / Ability | The pool. The Attribute list also has Virtues, Willpower and Humanity/Path. Ability can be "— none —". |
+| Type | **Single roll**, **Extended** (each on their own) or **Teamwork** (shared total) |
+| Difficulty | 2–10 |
+| Successes needed, On failure, On botch, Max rolls | Extended and Teamwork only. Leave Max rolls blank for no limit. |
+
+**The card.** Everyone sees the pool, difficulty and successes needed. Each row's **Roll** button appears for that character's owner and the GM. It opens the system's normal roll dialog, so specialties and modifiers still apply.
+
+- **Single roll:** each row shows its successes. A companion assisting adds theirs ("2 + 1 help").
+- **Extended:** each character has their own bar, roll count and log. An assisting companion's successes add to that character's total, and a companion's botch counts as that character's botch. Max rolls counts the character's own rolls, not the assist.
+- **Teamwork:** one shared bar, and each row shows what that character contributed. A botch resets the team total, and with *Reset and lock* the botcher is out of the request.
+- **GM controls:** Close request, Remove a row, and Clear lock.
+
+**Companions.** You can always roll for them. Give a player **Owner** permission on a companion (for example the player who travels with them) and that player gets the Roll button too.
+
+**Players' results** are written by the Storyteller's client, one at a time, so simultaneous teamwork rolls never overwrite each other. The Storyteller has to be connected for players' rolls to be recorded.
 
 ## Extended actions
 
