@@ -191,3 +191,74 @@ export function virtueFlagFor(paths, pathName) {
   const info = paths?.[pathName];
   return info ? { conscience: info.virtues.conscience, selfControl: info.virtues.selfControl } : null;
 }
+
+// ---------------------------------------------------------------------------
+// Discipline stat overrides: GM values that beat the system's compendium data
+// and every copy of a Discipline. Stored per Discipline name, then level:
+//   { animalism: { lvl3: { difficulty: 7, primary: '...', secondary: '', cost: '' } } }
+// A field is overridden only when it is present.
+
+export const STAT_FIELDS = ['difficulty', 'primary', 'secondary', 'cost'];
+export const DISCIPLINE_TYPE = 'discipline';
+
+export function statKey(name) { return lc(name).replace(/\./g, ''); }
+
+export function normalizeStat(o) {
+  const out = {};
+  if (!o || typeof o !== 'object') return out;
+  if (o.difficulty !== undefined && o.difficulty !== null && o.difficulty !== '') out.difficulty = clampDiff(o.difficulty);
+  for (const f of ['primary', 'secondary', 'cost']) if (typeof o[f] === 'string') out[f] = o[f].trim();
+  return out;
+}
+
+export const hasStat = o => !!o && STAT_FIELDS.some(f => f in o);
+
+// Field-by-field updates needed to bring one Discipline item in line, as a
+// flat { 'system.powers.lvl3.difficulty': 7 } object; null when nothing differs.
+export function statUpdates(item, overrides) {
+  if (item?.type !== DISCIPLINE_TYPE) return null;
+  const byLvl = overrides?.[statKey(item.name)];
+  if (!byLvl) return null;
+  const out = {};
+  for (const lvl of POWER_LEVELS) {
+    const o = byLvl[lvl];
+    if (!o) continue;
+    const cur = item.system?.powers?.[lvl] ?? {};
+    for (const f of STAT_FIELDS) {
+      if (!(f in o)) continue;
+      const want = o[f];
+      const have = f === 'difficulty' ? Number(cur[f]) : String(cur[f] ?? '');
+      if (have !== want) out[`system.powers.${lvl}.${f}`] = want;
+    }
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+// Strip changes to overridden fields from an update; returns the keys removed.
+// `flat` is a flattened update object and is modified in place.
+export function stripOverridden(item, overrides, flat) {
+  const byLvl = overrides?.[statKey(item?.name)];
+  if (item?.type !== DISCIPLINE_TYPE || !byLvl) return [];
+  const removed = [];
+  for (const key of Object.keys(flat)) {
+    const m = key.match(/^system\.powers\.(lvl[1-5])\.(difficulty|primary|secondary|cost)$/);
+    if (!m) continue;
+    const o = byLvl[m[1]];
+    if (!o || !(m[2] in o)) continue;
+    const v = m[2] === 'difficulty' ? Number(flat[key]) : String(flat[key] ?? '');
+    if (v !== o[m[2]]) { delete flat[key]; removed.push(key); }
+  }
+  return removed;
+}
+
+export function summarizeStat(o) {
+  if (!hasStat(o)) return '';
+  const parts = [];
+  if ('primary' in o || 'secondary' in o) {
+    const t = [o.primary, o.secondary].filter(Boolean).map(traitLabel).join(' + ') || 'no roll';
+    parts.push(t);
+  }
+  if ('difficulty' in o) parts.push(`Diff ${o.difficulty}`);
+  if ('cost' in o) parts.push(o.cost ? `Cost ${o.cost}` : 'No cost');
+  return `Override: ${parts.join(' · ')}`;
+}

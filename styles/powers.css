@@ -54,3 +54,10 @@
 /* Elder rows can be dragged to the Items sidebar or another sheet */
 .vpw-elder-row[draggable="true"] { cursor: grab; }
 .vpw-elder-row[draggable="true"]:active { cursor: grabbing; }
+
+/* Discipline stat overrides */
+.vpw-stats-btn { flex: 0 0 auto; min-height: 28px; font-size: 13px; cursor: pointer; }
+.vpw-stats .vpw-row > span { display: flex; align-items: center; gap: 6px; }
+.vpw-stat-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.vpw-stat-item { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px; font-size: 14px; }
+.vpw-stat-item button, .vpw-stat-manager button[data-action="reapply"] { min-height: 30px; font-size: 14px; cursor: pointer; }

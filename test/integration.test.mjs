@@ -56,7 +56,7 @@ Object.assign(globalThis, {
     data: { fields: new Proxy({}, { get: () => class { constructor(o) { this.o = o; } } }) },
     abstract: { TypeDataModel: class {} },
     applications: {
-      api: { DialogV2: { wait: async () => null }, HandlebarsApplicationMixin: B => class extends B {} },
+      api: { DialogV2: { wait: async () => null }, HandlebarsApplicationMixin: B => class extends B {}, ApplicationV2: class {} },
       sheets: { ItemSheetV2: class {} },
       apps: { DocumentSheetConfig: { registerSheet: (...a) => { (globalThis.__sheetRegs ??= []).push(a); } } },
     },
@@ -69,7 +69,7 @@ Object.assign(globalThis, {
   game: {
     system: { id: 'vtm-v20' }, user: p1,
     users: { get activeGM() { return { isSelf: game.user.isGM }; } },
-    settings: { register() {}, get: (m, k) => settings[`${m}.${k}`], set: async (m, k, v) => { settings[`${m}.${k}`] = v; } },
+    settings: { register() {}, registerMenu() {}, get: (m, k) => settings[`${m}.${k}`], set: async (m, k, v) => { settings[`${m}.${k}`] = v; } },
     modules: { get: () => (globalThis.__mod ??= {}) },
     messages: { get: id => messages.find(m => m.id === id) },
     socket: { emit: (ch, d) => emitted.push([ch, d]), on: (ch, f) => { globalThis.__sock = f; } },

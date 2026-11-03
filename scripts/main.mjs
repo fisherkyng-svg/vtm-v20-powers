@@ -1,5 +1,6 @@
 import { registerElder } from './elder.mjs';
 import { registerPaths } from './paths.mjs';
+import { registerOverrides, decorateRow, applyStats, editStats, allStats } from './overrides.mjs';
 import {
   MODULE_ID, POWER_ITEM_TYPES, ELDER_TYPE, powerKey, traitLabel, normalizeConfig, isActive,
   targetDifficulty, resistDifficulty, contest, findPower, summarize, titleCase, defaultConfig,
@@ -247,10 +248,10 @@ function onRenderItemSheet(app, element) {
     const sel = block.querySelector('select[name$=".primary"]');
     const lvl = sel?.name?.match(/powers\.(lvl\d)\./)?.[1];
     if (!lvl) continue;
-    block.querySelector('.vpw-config')?.remove();
+    for (const el of block.querySelectorAll('.vpw-config')) el.remove();
     const cfg = getConfig(item.type, item.name, lvl);
     const text = cfg ? summarize(cfg) : '';
-    if (!text && !game.user.isGM) continue;
+    if (!text && !game.user.isGM) { decorateRow(item, lvl, block); continue; }
     const row = document.createElement('div');
     row.className = 'vpw-config';
     row.innerHTML = `<span class="vpw-summary">${text ? `<i class="fas fa-crosshairs"></i> ${esc(text)}` : ''}</span>
@@ -259,6 +260,7 @@ function onRenderItemSheet(app, element) {
     btn?.addEventListener('click', ev => { ev.preventDefault(); ev.stopPropagation(); editConfig(item, lvl); });
     keepEnabled(btn);
     (block.querySelector('.power-meta') ?? block.querySelector('.power-header'))?.after(row);
+    decorateRow(item, lvl, block);
   }
 }
 
@@ -271,7 +273,8 @@ Hooks.once('init', () => {
   Hooks.on('renderChatMessageHTML', onRenderMessage);
   registerElder({ getConfig, editConfig, traitSelect, summarize, keepEnabled });
   registerPaths();
-  game.modules.get(MODULE_ID).api = { getConfig, setConfig, editConfig, rollResist };
+  registerOverrides({ traitSelect, keepEnabled });
+  game.modules.get(MODULE_ID).api = { getConfig, setConfig, editConfig, rollResist, applyStats, editStats, allStats };
 });
 
 Hooks.once('ready', () => {

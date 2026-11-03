@@ -1,10 +1,11 @@
-# VtM V20 Powers (`vtm-v20-powers`) v0.3.2
+# VtM V20 Powers (`vtm-v20-powers`) v0.4.0
 
 Contested Discipline powers for the **Vampire: The Masquerade V20** Foundry system (`vtm-v20` ≥ 1.1.5, Foundry v13–14).
 
 - **Difficulty from the target.** A power's difficulty comes from the targeted token's traits, for example the target's permanent Willpower, or Wits + Courage.
 - **Resisted rolls.** After a successful activation, the target gets a one-click **Roll resistance** button in chat. The module then posts the winner and the net successes.
 - **Elder powers (levels 6–10).** A new **Elder Power** item type. Several can exist per level, and they're listed under their Discipline on the character sheet.
+- **Discipline stat overrides.** Your own Diff, roll traits, and cost for any Discipline power. They beat the system compendium (which rebuilds itself from code) and every character's copy.
 - **Paths of Enlightenment.** A new **Path of Enlightenment** item type. Custom paths join every sheet's path list with their own virtues, bearing, ethics, and Hierarchy of Sins.
 
 ## Install
@@ -34,6 +35,24 @@ The setup is stored per **Discipline name + level** for the whole world. Configu
 4. The result card shows both success counts and who won by how many. **Ties go to the resister.**
 
 If no token is targeted, the power rolls at its fixed difficulty, and you resolve any resistance by hand. A failed or botched activation posts no resist card.
+
+## Discipline Stat Overrides
+
+The system rebuilds its Disciplines compendium from code on every update and every Authentic Text apply, so editing the pack by hand doesn't last. Overrides do.
+
+**Set one.** Open the Discipline (the compendium item works) and click **Stats…** under the power. Tick the fields to override (Roll traits, Difficulty, Cost), then **Save**. A confirmation shows how many copies will change: the compendium item, world items, and every character's copy, including unlinked tokens.
+
+**What it enforces.**
+
+- New copies get the override when they're created, from any source. That includes the compendium rebuild.
+- Edits to an overridden field on any copy are turned back with a warning. Change the override instead.
+- On load and after any rebuild, the Storyteller's client re-syncs everything that drifted.
+
+**Clear one.** Click **Stats…** and then **Clear**, or use **Module Settings → Discipline Stat Overrides → Manage Overrides**. Existing copies keep their current values. The compendium returns to the book value on its next rebuild.
+
+**Manage window.** It lists every override with a Clear button, plus **Re-apply all** for a full sync. Take a world backup before the first Re-apply all on a big world.
+
+Overrides are keyed by Discipline name and level, the same as contest setups.
 
 ## Elder Powers
 
