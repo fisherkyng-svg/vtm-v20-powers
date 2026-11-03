@@ -92,3 +92,13 @@
 .vpw-form [hidden], .vpw-form .vpw-dep[hidden] { display: none !important; }
 .vpw-dep { display: flex; flex-direction: column; gap: 5px; }
 label.vpw-dep { flex-direction: row; }
+
+/* Split pool (multiple actions) */
+.vpw-split-line { border-top: 1px dashed rgba(0, 0, 0, 0.2); padding-top: 4px; }
+.vpw-split-actions, .vpw-split-results { margin: 2px 0 4px; padding-left: 18px; font-size: 14px; }
+.vpw-split-results { list-style: none; padding-left: 0; }
+.vpw-split-results li { display: flex; justify-content: space-between; gap: 6px; }
+.vpw-split-alloc { display: flex; flex-direction: column; gap: 4px; }
+.vpw-split-slider { display: grid; grid-template-columns: minmax(0, 1fr) minmax(90px, 1.2fr) 2ch; align-items: center; gap: 6px; font-size: 14px; }
+.vpw-split-slider input[type="range"] { width: 100%; min-height: 28px; }
+.vpw-split-sum { margin: 2px 0; font-size: 14px; }

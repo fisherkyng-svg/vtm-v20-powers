@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { splitBudget, checkAllocation, applySplitRoll, resetRequestRow, splitActionDiff, normalizeConfig, resistDifficulty, summarize } from '../scripts/logic.mjs';
 import { newRequest, applyRequestRoll, requestRollable, singleTotal, clearRequestLock, removeRequestRow } from '../scripts/logic.mjs';
 
 const S = (o, r) => ({ total: o === 'success' ? r : 0, outcome: o });
@@ -92,4 +93,58 @@ test('closed request and removal', () => {
   assert.deepEqual(s.rows.map(r => r.id), ['r2']); // Moth and his assist gone
   s.status = 'closed';
   assert.equal(requestRollable(s, 'r2').reason, 'the request is closed');
+});
+
+
+test('resist difficulty from attacker successes + modifier, clamped 2..10', () => {
+  const c = normalizeConfig({ resist: { enabled: true, traits: ['willpowerCurrent', ''], diffMode: 'successes', mod: 3 } });
+  assert.equal(c.resist.diffMode, 'successes');
+  assert.equal(resistDifficulty(c, {}, 1), 4);
+  assert.equal(resistDifficulty(c, {}, 9), 10);
+  const plain = normalizeConfig({ resist: { enabled: true, diffMode: 'successes', mod: 0 } });
+  assert.equal(resistDifficulty(plain, {}, 1), 2);
+  assert.equal(resistDifficulty(plain, {}, 4), 4);
+  assert.match(summarize(c), /vs diff your successes \+ 3/);
+});
+
+const split = () => newRequest({ type: 'split', extraDiff: 1, rows: rows.slice(0, 2), actions: [
+  { label: 'Find the password', attr: 'attributes.intelligence', ability: 'abilities.investigation', difficulty: 7 },
+  { label: 'Stay hidden', attr: 'attributes.dexterity', ability: 'abilities.stealth', difficulty: 10 },
+] });
+
+test('split: budget is the smallest pool plus wound penalty, at least 1', () => {
+  assert.equal(splitBudget([7, 5]), 5);
+  assert.equal(splitBudget([7, 5], -2), 3);
+  assert.equal(splitBudget([1, 4], -3), 1);
+});
+
+test('split: request shape, extra difficulty capped at 10', () => {
+  const s = split();
+  assert.equal(s.actions.length, 2);
+  assert.equal(splitActionDiff(s, s.actions[0]), 8);
+  assert.equal(splitActionDiff(s, s.actions[1]), 10);
+  assert.ok(s.rows.every(r => r.role === 'main'));
+});
+
+test('split: allocation checks', () => {
+  assert.equal(checkAllocation([3, 2], 5, 2).ok, true);
+  assert.equal(checkAllocation([3, 1], 5, 2).ok, true); // unspent allowed
+  assert.match(checkAllocation([4, 2], 5, 2).reason, /budget is 5/);
+  assert.match(checkAllocation([0, 0], 5, 2).reason, /at least one/);
+  assert.equal(checkAllocation([2.5, 2], 5, 2).ok, false);
+  assert.equal(checkAllocation([5], 5, 2).ok, false);
+});
+
+test('split: record results, skipped action, one go, reset', () => {
+  let s = split();
+  s = applySplitRoll(s, 'r1', { alloc: [5, 0], budget: 5, results: [{ total: 2, outcome: 'success' }, null] });
+  const r = s.rows[0];
+  assert.equal(r.status, 'rolled');
+  assert.deepEqual(r.results, [{ total: 2, outcome: 'success' }, { skipped: true }]);
+  assert.equal(requestRollable(s, 'r1').ok, false);
+  const over = applySplitRoll(s, 'r2', { alloc: [6, 1], budget: 5, results: [] });
+  assert.equal(over.rows[1].status, 'open'); // over budget ignored
+  s = resetRequestRow(s, 'r1');
+  assert.equal(requestRollable(s, 'r1').ok, true);
+  assert.deepEqual(s.rows[0].results, []);
 });

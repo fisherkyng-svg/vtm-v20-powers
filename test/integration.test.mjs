@@ -438,3 +438,59 @@ test('request: an assist pointing at an unticked character becomes its own row',
   assert.deepEqual(reqState().rows.map(r => r.role), ['main', 'main']);
   assert.match(notes.at(-1), /isn't on the request/);
 });
+
+test('resisted by attacker successes: card shows successes + modifier', async () => {
+  as(gm);
+  await api.setConfig('discipline', 'Dominate', 'lvl1', { resist: { enabled: true, traits: ['willpowerCurrent', ''], diffMode: 'successes', mod: 3 } });
+  as(p1); currentTarget = { actor: marcus };
+  rollScript.push({ total: 2, outcome: 'success' });
+  await game.vtm.rollDicePool(lucien, { trait: 'attributes.manipulation', label: 'Dominate: Command', difficulty: 6 });
+  const card = lastResist();
+  assert.equal(card.flags['vtm-v20-powers'].resist.difficulty, 5);
+  assert.match(card.content, /Lucien's successes \+ 3/);
+  as(gm);
+  await api.setConfig('discipline', 'Dominate', 'lvl1', null);
+});
+
+test('split request: player allocates, each action rolls its share, GM records', async () => {
+  as(gm);
+  lucien.system.attributes.intelligence = 3; lucien.system.abilities.investigation = 2;
+  lucien.system.attributes.dexterity = 2; lucien.system.abilities.stealth = 2; lucien.system.woundPenalty = 0;
+  await api.createRequest({ label: 'Hallway', type: 'split', extraDiff: 0, pcs: ['Actor.Lucien'], npcs: [], actions: [
+    { label: 'Password', attr: 'attributes.intelligence', ability: 'abilities.investigation', difficulty: 7 },
+    { label: 'Sneak', attr: 'attributes.dexterity', ability: 'abilities.stealth', difficulty: 6 },
+  ] });
+  const msg = lastReq();
+  as(p1);
+  const btn = renderReq(msg).btns.find(b => b.dataset.req === 'roll');
+  assert.ok(btn, 'player sees Roll all');
+  btn.closest = () => ({ querySelectorAll: () => [{ value: '3' }, { value: '1' }] });
+  rollScript.push({ total: 2, outcome: 'success' }, { total: 0, outcome: 'failure' });
+  const n = emitted.length;
+  btn.click();
+  await flush(); await flush();
+  const calls = rollCalls.slice(-2);
+  assert.deepEqual(calls.map(c => [c.poolOverride, c.difficulty, c.adjust]), [[3, 7, true], [1, 6, true]]);
+  const sent = emitted.slice(n).find(e => e[1].kind === 'split');
+  as(gm);
+  globalThis.__sock(sent[1]);
+  await flush(); await flush(); await flush();
+  const row = reqState().rows[0];
+  assert.equal(row.status, 'rolled');
+  assert.deepEqual(row.alloc, [3, 1]);
+  assert.equal(row.budget, 4); // smallest pool: Dex 2 + Stealth 2
+  assert.match(renderReq(lastReq()).innerHTML, /Reset row/);
+});
+
+test('split request: GM rejects an over-budget allocation', async () => {
+  as(gm);
+  await api.createRequest({ type: 'split', pcs: ['Actor.Lucien'], npcs: [], actions: [
+    { label: 'A', attr: 'attributes.intelligence', ability: 'abilities.investigation', difficulty: 6 },
+    { label: 'B', attr: 'attributes.dexterity', ability: 'abilities.stealth', difficulty: 6 },
+  ] });
+  globalThis.__sock({ action: 'request', kind: 'split', msgId: lastReq().id, rowId: 'r1', userId: 'p1',
+    payload: { alloc: [5, 4], budget: 99, results: [{ total: 5, outcome: 'success' }, { total: 4, outcome: 'success' }] } });
+  await flush(); await flush(); await flush();
+  assert.equal(reqState().rows[0].status, 'open');
+  assert.match(notes.at(-1), /over their budget of 4/);
+});

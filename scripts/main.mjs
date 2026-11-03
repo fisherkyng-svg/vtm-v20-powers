@@ -91,14 +91,15 @@ async function wrappedRoll(actor, opts = {}) {
 // Resisted rolls
 
 async function postResistCard(attacker, target, power, cfg, atkTotal) {
-  const resist = { traits: cfg.resist.traits.filter(Boolean), difficulty: resistDifficulty(cfg, attacker.system) };
+  const resist = { traits: cfg.resist.traits.filter(Boolean), difficulty: resistDifficulty(cfg, attacker.system, atkTotal) };
+  const why = cfg.resist.diffMode === 'successes' ? ` (${esc(attacker.name)}'s successes${cfg.resist.mod ? ` ${cfg.resist.mod > 0 ? '+' : '−'} ${Math.abs(cfg.resist.mod)}` : ''})` : '';
   const pool = resist.traits.map(traitLabel).join(' + ');
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: attacker }),
     content: `<div class="vpw-card">
       <h3>${esc(power)}</h3>
       <p><b>${esc(attacker.name)}</b> scored <b>${atkTotal}</b> success${atkTotal === 1 ? '' : 'es'} against <b>${esc(target.name)}</b>.</p>
-      <p>${esc(target.name)} resists with <b>${esc(pool)}</b>, difficulty <b>${resist.difficulty}</b>.</p>
+      <p>${esc(target.name)} resists with <b>${esc(pool)}</b>, difficulty <b>${resist.difficulty}</b>${why}.</p>
       <div class="vpw-resist-slot"></div></div>`,
     flags: { [MODULE_ID]: {
       kind: 'resist', power, atkTotal, resist, resolved: false,
@@ -215,12 +216,14 @@ async function editConfig(item, lvl) {
       <label class="vpw-row">+ trait ${traitSelect('resT2', cfg.resist.traits[1])}</label>
       <label class="vpw-row">Resist difficulty <select name="resDiffMode">
         <option value="fixed" ${cfg.resist.diffMode === 'fixed' ? 'selected' : ''}>Fixed number</option>
-        <option value="attacker" ${cfg.resist.diffMode === 'attacker' ? 'selected' : ''}>From the attacker's traits</option></select></label>
+        <option value="attacker" ${cfg.resist.diffMode === 'attacker' ? 'selected' : ''}>From the attacker's traits</option>
+        <option value="successes" ${cfg.resist.diffMode === 'successes' ? 'selected' : ''}>The attacker's successes</option></select></label>
       <label class="vpw-row vpw-dep" data-when="resDiffMode=fixed">Fixed difficulty <input type="number" name="resDiff" value="${cfg.resist.diff}" min="2" max="10"></label>
       <div class="vpw-dep" data-when="resDiffMode=attacker">
       <label class="vpw-row">Attacker trait ${traitSelect('resA1', cfg.resist.attackerTraits[0])}</label>
-      <label class="vpw-row">+ trait ${traitSelect('resA2', cfg.resist.attackerTraits[1])}</label>
-      <label class="vpw-row">Modifier <input type="number" name="resMod" value="${cfg.resist.mod}" step="1"></label></div></div>
+      <label class="vpw-row">+ trait ${traitSelect('resA2', cfg.resist.attackerTraits[1])}</label></div>
+      <label class="vpw-row vpw-dep" data-when="resDiffMode!=fixed">Modifier <input type="number" name="resMod" value="${cfg.resist.mod}" step="1"></label>
+      <p class="vpw-sub vpw-dep" data-when="resDiffMode=successes">Difficulty = the attacker's successes + modifier, kept between 2 and 10.</p></div>
     </fieldset>
     <fieldset><legend>Extended action</legend>
       <label class="vpw-check"><input type="checkbox" name="extEnabled" ${cfg.extended.enabled ? 'checked' : ''}> Successes accumulate toward a goal</label>
@@ -294,7 +297,8 @@ export function bindDependents(root) {
     const m = expr.match(/^([\w-]+)(!?=)(.*)$/);
     if (!m) { const f = field(expr); return !!f?.checked; }
     const v = field(m[1])?.value;
-    return m[2] === '=' ? v === m[3] : v !== m[3];
+    const hit = m[3].split('|').includes(v); // "type=extended|team"
+    return m[2] === '=' ? hit : !hit;
   };
   const sync = () => { for (const el of deps) el.hidden = !test(el.dataset.when); };
   root.addEventListener('change', sync);

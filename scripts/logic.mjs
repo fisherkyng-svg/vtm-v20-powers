@@ -67,7 +67,7 @@ export function normalizeConfig(cfg) {
     resist: {
       enabled: !!cfg.resist?.enabled,
       traits: pair(cfg.resist?.traits, d.resist.traits),
-      diffMode: cfg.resist?.diffMode === 'attacker' ? 'attacker' : 'fixed',
+      diffMode: ['attacker', 'successes'].includes(cfg.resist?.diffMode) ? cfg.resist.diffMode : 'fixed',
       diff: clampDiff(cfg.resist?.diff ?? 6),
       attackerTraits: pair(cfg.resist?.attackerTraits, d.resist.attackerTraits),
       mod: Math.trunc(Number(cfg.resist?.mod) || 0),
@@ -94,7 +94,8 @@ export function targetDifficulty(cfg, targetSystem) {
 }
 
 // Resister's difficulty: a fixed number, or taken from the attacker's traits
-export function resistDifficulty(cfg, attackerSystem) {
+export function resistDifficulty(cfg, attackerSystem, attackerSuccesses = 0) {
+  if (cfg.resist.diffMode === 'successes') return clampDiff((Number(attackerSuccesses) || 0) + cfg.resist.mod);
   if (cfg.resist.diffMode === 'attacker') {
     return clampDiff(sumTraits(attackerSystem, cfg.resist.attackerTraits) + cfg.resist.mod);
   }
@@ -153,9 +154,12 @@ export function summarize(cfg) {
   const parts = [];
   if (cfg.diff.mode === 'target') parts.push(`Diff = target's ${traitsText(cfg.diff.traits, cfg.diff.mod)}`);
   if (cfg.resist.enabled) {
+    const m = cfg.resist.mod;
     const rd = cfg.resist.diffMode === 'attacker'
-      ? `your ${traitsText(cfg.resist.attackerTraits, cfg.resist.mod)}`
-      : String(cfg.resist.diff);
+      ? `your ${traitsText(cfg.resist.attackerTraits, m)}`
+      : cfg.resist.diffMode === 'successes'
+        ? `your successes${m ? ` ${m > 0 ? '+' : '−'} ${Math.abs(m)}` : ''}`
+        : String(cfg.resist.diff);
     parts.push(`Resisted: ${traitsText(cfg.resist.traits)} vs diff ${rd}`);
   }
   if (cfg.extended?.enabled) {
@@ -326,7 +330,7 @@ export function extendedKey(actorUuid, cfgAddr, targetUuid) {
 // companions), single / extended (each on their own) / teamwork (shared).
 // Companions can have their own row or assist a character's row.
 
-export const REQUEST_TYPES = ['single', 'extended', 'team'];
+export const REQUEST_TYPES = ['single', 'extended', 'team', 'split'];
 
 export function newRequest(o) {
   const type = REQUEST_TYPES.includes(o.type) ? o.type : 'single';
@@ -341,7 +345,15 @@ export function newRequest(o) {
       total: 0, gained: 0, rolls: 0, status: 'open', last: null, log: [],
     });
   });
+  if (type === 'split') {
+    for (const r of rows) { r.role = 'main'; r.parent = null; r.alloc = []; r.results = []; r.budget = null; }
+  }
   return {
+    actions: type === 'split' ? (o.actions ?? []).slice(0, 4).map((a, i) => ({
+      label: String(a.label ?? '').trim() || `Action ${i + 1}`, attr: a.attr || '', ability: a.ability || '',
+      difficulty: clampDiff(a.difficulty),
+    })) : [],
+    extraDiff: type === 'split' ? Math.max(0, Math.trunc(Number(o.extraDiff) || 0)) : 0,
     label: String(o.label ?? '').trim(), attr: o.attr || '', ability: o.ability || '',
     difficulty: clampDiff(o.difficulty), type,
     goal: Math.max(1, Math.trunc(Number(o.goal) || 1)),
@@ -362,7 +374,7 @@ export function requestRollable(s, rowId) {
   if (!row) return { ok: false, reason: 'not on this request' };
   if (s.status !== 'open') return { ok: false, reason: 'the request is closed' };
   if (row.status === 'locked') return { ok: false, reason: 'locked after a botch' };
-  if (s.type === 'single') return row.rolls ? { ok: false, reason: 'already rolled' } : { ok: true };
+  if (s.type === 'single' || s.type === 'split') return row.rolls ? { ok: false, reason: 'already rolled' } : { ok: true };
   if (s.type === 'team') return s.team.status === 'open' ? { ok: true } : { ok: false, reason: `the team is ${s.team.status === 'done' ? 'done' : 'out of rolls'}` };
   const owner = row.role === 'assist' ? findRow(s, row.parent) : row;
   if (owner.status !== 'open') return { ok: false, reason: owner.status === 'done' ? 'goal already reached' : owner.status === 'out' ? 'out of rolls' : 'locked after a botch' };
@@ -427,5 +439,53 @@ export function clearRequestLock(state, rowId) {
 export function removeRequestRow(state, rowId) {
   const s = JSON.parse(JSON.stringify(state));
   s.rows = s.rows.filter(r => r.id !== rowId && r.parent !== rowId);
+  return s;
+}
+
+// ---- split pool (V20 multiple actions) -------------------------------------
+
+// Budget: the smallest of the action pools, plus the (negative) wound penalty
+export function splitBudget(pools, woundPenalty = 0) {
+  const vals = (pools ?? []).map(n => Number(n) || 0);
+  if (!vals.length) return 0;
+  return Math.max(Math.min(...vals) + (Number(woundPenalty) || 0), 1);
+}
+
+export const splitActionDiff = (s, a) => Math.min(10, (Number(a.difficulty) || 6) + (s.extraDiff || 0));
+
+// { ok, reason } for an allocation against a budget
+export function checkAllocation(alloc, budget, count) {
+  if (!Array.isArray(alloc) || alloc.length !== count) return { ok: false, reason: 'one value per action' };
+  if (alloc.some(n => !Number.isInteger(n) || n < 0)) return { ok: false, reason: 'whole numbers only' };
+  const sum = alloc.reduce((a, b) => a + b, 0);
+  if (sum < 1) return { ok: false, reason: 'allocate at least one die' };
+  if (sum > budget) return { ok: false, reason: `${sum} dice allocated, budget is ${budget}` };
+  return { ok: true, sum };
+}
+
+// Record a row's split roll: results[i] is { total, outcome }, or null when skipped/cancelled
+export function applySplitRoll(state, rowId, { alloc, budget, results }) {
+  const s = JSON.parse(JSON.stringify(state));
+  const row = s.rows.find(r => r.id === rowId);
+  if (s.type !== 'split' || !row || !requestRollable(s, rowId).ok) return s;
+  if (!checkAllocation(alloc, budget, s.actions.length).ok) return s;
+  row.alloc = alloc;
+  row.budget = budget;
+  row.results = s.actions.map((_, i) => {
+    const r = results?.[i];
+    if (!alloc[i] || !r) return { skipped: true };
+    const outcome = ['success', 'failure', 'botch'].includes(r.outcome) ? r.outcome : 'failure';
+    return { total: outcome === 'success' ? Math.max(0, Number(r.total) || 0) : 0, outcome };
+  });
+  row.rolls = 1;
+  row.status = 'rolled';
+  return s;
+}
+
+export function resetRequestRow(state, rowId) {
+  const s = JSON.parse(JSON.stringify(state));
+  const row = s.rows.find(r => r.id === rowId);
+  if (!row) return s;
+  Object.assign(row, { total: 0, gained: 0, rolls: 0, status: 'open', last: null, log: [], alloc: [], results: [], budget: null });
   return s;
 }

@@ -1,4 +1,4 @@
-# VtM V20 Powers (`vtm-v20-powers`) v0.6.1
+# VtM V20 Powers (`vtm-v20-powers`) v0.7.0
 
 Contested Discipline powers for the **Vampire: The Masquerade V20** Foundry system (`vtm-v20` ≥ 1.1.5, Foundry v13–14).
 
@@ -24,7 +24,7 @@ Then enable it under **Manage Modules**.
 2. Under each power, click **Contest…**.
 3. Configure:
    - **Attacker's difficulty:** *Fixed* uses the power's Diff box. *From the target's traits* lets you pick one or two traits plus a modifier.
-   - **Resisted roll:** tick **Target rolls to resist**. Pick the resist pool (one or two traits). The resist difficulty is either a fixed number or taken from the attacker's traits.
+   - **Resisted roll:** tick **Target rolls to resist**. Pick the resist pool (one or two traits). The resist difficulty is a fixed number, taken from the attacker's traits, or **the attacker's successes** plus a modifier (for example +3). It's kept between 2 and 10.
 4. Click **Save**.
 
 The setup is stored per **Discipline name + level** for the whole world. Configure Dominate level 2 once, and every character's Dominate uses it, including copies bought later. A summary line under the power shows the setup to everyone.
@@ -60,6 +60,8 @@ If no token is targeted, the power rolls at its fixed difficulty, and you resolv
 - **Extended:** each character has their own bar, roll count and log. An assisting companion's successes add to that character's total, and a companion's botch counts as that character's botch. Max rolls counts the character's own rolls, not the assist.
 - **Teamwork:** one shared bar, and each row shows what that character contributed. A botch resets the team total, and with *Reset and lock* the botcher is out of the request.
 - **GM controls:** Close request, Remove a row, and Clear lock.
+
+**Split pool (multiple actions).** Choose Type **Split pool** and tick 2–4 actions. Each action has its own Label, Attribute, Ability and Difficulty, and **+ difficulty to all** covers actions that are very different. Each character's row shows a budget: the smallest of their action pools, counted the way the system counts dice (Potence, Celerity's Dexterity, and blood buffs included), minus wound penalty. They split it with sliders and click **Roll all**. Each action rolls its share at its own difficulty, and the system's adjust step still allows specialties and bonus dice. An action given 0 dice is skipped. Each row rolls once, and the GM's **Reset row** lets them redo it. The Storyteller's client re-checks the budget and refuses an over-budget split. Combat already handles multiple actions through the system's Declaration Phase, so use this outside combat.
 
 **Companions.** You can always roll for them. Give a player **Owner** permission on a companion (for example the player who travels with them) and that player gets the Roll button too.
 
