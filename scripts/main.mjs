@@ -203,42 +203,48 @@ async function editConfig(item, lvl) {
       <label class="vpw-row">Source <select name="diffMode">
         <option value="fixed" ${cfg.diff.mode === 'fixed' ? 'selected' : ''}>Fixed (the power's Diff box)</option>
         <option value="target" ${cfg.diff.mode === 'target' ? 'selected' : ''}>From the target's traits</option></select></label>
+      <div class="vpw-dep" data-when="diffMode=target">
       <label class="vpw-row">Target trait ${traitSelect('diffT1', cfg.diff.traits[0], { allowEmpty: false })}</label>
       <label class="vpw-row">+ trait ${traitSelect('diffT2', cfg.diff.traits[1])}</label>
-      <label class="vpw-row">Modifier <input type="number" name="diffMod" value="${cfg.diff.mod}" step="1"></label>
+      <label class="vpw-row">Modifier <input type="number" name="diffMod" value="${cfg.diff.mod}" step="1"></label></div>
     </fieldset>
     <fieldset><legend>Resisted roll</legend>
       <label class="vpw-check"><input type="checkbox" name="resEnabled" ${cfg.resist.enabled ? 'checked' : ''}> Target rolls to resist</label>
+      <div class="vpw-dep" data-when="resEnabled">
       <label class="vpw-row">Resist trait ${traitSelect('resT1', cfg.resist.traits[0], { allowEmpty: false })}</label>
       <label class="vpw-row">+ trait ${traitSelect('resT2', cfg.resist.traits[1])}</label>
       <label class="vpw-row">Resist difficulty <select name="resDiffMode">
         <option value="fixed" ${cfg.resist.diffMode === 'fixed' ? 'selected' : ''}>Fixed number</option>
         <option value="attacker" ${cfg.resist.diffMode === 'attacker' ? 'selected' : ''}>From the attacker's traits</option></select></label>
-      <label class="vpw-row">Fixed difficulty <input type="number" name="resDiff" value="${cfg.resist.diff}" min="2" max="10"></label>
+      <label class="vpw-row vpw-dep" data-when="resDiffMode=fixed">Fixed difficulty <input type="number" name="resDiff" value="${cfg.resist.diff}" min="2" max="10"></label>
+      <div class="vpw-dep" data-when="resDiffMode=attacker">
       <label class="vpw-row">Attacker trait ${traitSelect('resA1', cfg.resist.attackerTraits[0])}</label>
       <label class="vpw-row">+ trait ${traitSelect('resA2', cfg.resist.attackerTraits[1])}</label>
-      <label class="vpw-row">Modifier <input type="number" name="resMod" value="${cfg.resist.mod}" step="1"></label>
+      <label class="vpw-row">Modifier <input type="number" name="resMod" value="${cfg.resist.mod}" step="1"></label></div></div>
     </fieldset>
     <fieldset><legend>Extended action</legend>
       <label class="vpw-check"><input type="checkbox" name="extEnabled" ${cfg.extended.enabled ? 'checked' : ''}> Successes accumulate toward a goal</label>
+      <div class="vpw-dep" data-when="extEnabled">
       <label class="vpw-row">Goal from <select name="extMode">
         <option value="target" ${cfg.extended.goalMode === 'target' ? 'selected' : ''}>The target's traits</option>
         <option value="self" ${cfg.extended.goalMode === 'self' ? 'selected' : ''}>The roller's own traits</option>
         <option value="fixed" ${cfg.extended.goalMode === 'fixed' ? 'selected' : ''}>A fixed number</option></select></label>
+      <div class="vpw-dep" data-when="extMode!=fixed">
       <label class="vpw-row">Goal trait ${traitSelect('extT1', cfg.extended.traits[0], { allowEmpty: false })}</label>
       <label class="vpw-row">+ trait ${traitSelect('extT2', cfg.extended.traits[1])}</label>
-      <label class="vpw-row">Modifier <input type="number" name="extMod" value="${cfg.extended.mod}" step="1"></label>
-      <label class="vpw-row">Fixed goal <input type="number" name="extGoal" value="${cfg.extended.goal}" min="1"></label>
+      <label class="vpw-row">Modifier <input type="number" name="extMod" value="${cfg.extended.mod}" step="1"></label></div>
+      <label class="vpw-row vpw-dep" data-when="extMode=fixed">Fixed goal <input type="number" name="extGoal" value="${cfg.extended.goal}" min="1"></label>
       <label class="vpw-row">On failure <select name="extFail">
         <option value="keep" ${cfg.extended.onFail === 'keep' ? 'selected' : ''}>Keep the total</option>
         <option value="reset" ${cfg.extended.onFail === 'reset' ? 'selected' : ''}>Reset to 0</option></select></label>
       <label class="vpw-row">On botch <select name="extBotch">
         <option value="reset" ${cfg.extended.onBotch === 'reset' ? 'selected' : ''}>Reset to 0</option>
-        <option value="lock" ${cfg.extended.onBotch === 'lock' ? 'selected' : ''}>Reset and lock for the scene</option></select></label>
+        <option value="lock" ${cfg.extended.onBotch === 'lock' ? 'selected' : ''}>Reset and lock for the scene</option></select></label></div>
     </fieldset>
     <p class="vpw-sub">Applies to ${scope}. Ties go to the resister. A power can be resisted or extended, not both.</p></div>`;
   const res = await DialogV2().wait({
     window: { title: `Contest: ${title}` }, content, rejectClose: false, position: { width: 480 },
+    render: (event, dialog) => bindDependents(dialog?.element ?? event?.target?.element),
     buttons: [
       { action: 'save', label: 'Save', icon: 'fas fa-check', default: true, callback: (ev, btn) => {
         const e = btn.form.elements;
@@ -277,6 +283,24 @@ function keepEnabled(btn) {
   btn._vpwObserver.observe(btn, { attributes: true, attributeFilter: ['disabled'] });
 }
 
+// Show/hide [data-when] blocks from other fields in the same form:
+// "name" (checkbox ticked), "name=value", or "name!=value"
+export function bindDependents(root) {
+  if (!root?.querySelectorAll) return;
+  const deps = [...root.querySelectorAll('[data-when]')];
+  if (!deps.length) return;
+  const field = n => root.querySelector(`[name="${n}"]`);
+  const test = expr => {
+    const m = expr.match(/^([\w-]+)(!?=)(.*)$/);
+    if (!m) { const f = field(expr); return !!f?.checked; }
+    const v = field(m[1])?.value;
+    return m[2] === '=' ? v === m[3] : v !== m[3];
+  };
+  const sync = () => { for (const el of deps) el.hidden = !test(el.dataset.when); };
+  root.addEventListener('change', sync);
+  sync();
+}
+
 function onRenderItemSheet(app, element) {
   const item = app.document;
   if (game.system.id !== SYSTEM_ID || !POWER_ITEM_TYPES.includes(item?.type)) return;
@@ -309,11 +333,18 @@ Hooks.once('init', () => {
   game.settings.register(MODULE_ID, 'configs', { scope: 'world', config: false, type: Object, default: {} });
   Hooks.on('renderItemSheetV2', onRenderItemSheet);
   Hooks.on('renderChatMessageHTML', onRenderMessage);
+  // Backstop for the dialogs' render callback: bind collapsible sections once
+  Hooks.on('renderDialogV2', (app, element) => {
+    const root = element instanceof HTMLElement ? element : element?.[0] ?? app?.element;
+    if (!root?.querySelector?.('.vpw-form') || root.dataset?.vpwBound) return;
+    root.dataset.vpwBound = '1';
+    bindDependents(root);
+  });
   registerElder({ getConfig, editConfig, traitSelect, summarize, keepEnabled });
   registerPaths();
   registerOverrides({ traitSelect, keepEnabled, allConfigs });
   setupExtended({ SOCKET });
-  registerRequests({ socket: SOCKET });
+  registerRequests({ socket: SOCKET, bindDependents });
   game.modules.get(MODULE_ID).api = { getConfig, setConfig, editConfig, rollResist, applyStats, editStats, allStats, requestRoll: openRequestWindow, createRequest };
 });
 

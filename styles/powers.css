@@ -85,3 +85,10 @@
 .vpw-req-assist { margin-left: 16px; border-top-style: dashed; }
 .vpw-req-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; font-size: 14px; }
 .vpw-req-remove { flex: 0 0 auto !important; min-width: 34px; }
+
+/* Tall dialogs: scroll inside instead of running off the screen, and make
+   [hidden] win over the flex layouts above */
+.vpw-form { max-height: calc(100vh - 190px); overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
+.vpw-form [hidden], .vpw-form .vpw-dep[hidden] { display: none !important; }
+.vpw-dep { display: flex; flex-direction: column; gap: 5px; }
+label.vpw-dep { flex-direction: row; }

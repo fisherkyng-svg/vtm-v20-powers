@@ -1,4 +1,4 @@
-# VtM V20 Powers (`vtm-v20-powers`) v0.6.0
+# VtM V20 Powers (`vtm-v20-powers`) v0.6.1
 
 Contested Discipline powers for the **Vampire: The Masquerade V20** Foundry system (`vtm-v20` ≥ 1.1.5, Foundry v13–14).
 

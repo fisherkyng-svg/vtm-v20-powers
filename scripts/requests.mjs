@@ -11,6 +11,7 @@ const DialogV2 = () => foundry.applications.api.DialogV2;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const flagsOf = msg => msg?.flags?.[MODULE_ID];
 let SOCKET = null;
+let deps = {};
 
 // ---------------------------------------------------------------------------
 // Who can be asked
@@ -92,7 +93,7 @@ export async function openRequestWindow() {
         <option value="team">Teamwork (shared total)</option></select></label>
       <label class="vpw-row">Difficulty <input type="number" name="difficulty" value="6" min="2" max="10"></label>
     </fieldset>
-    <fieldset class="vpw-ext-fields"><legend>Extended</legend>
+    <fieldset class="vpw-ext-fields vpw-dep" data-when="type!=single"><legend>Extended</legend>
       <label class="vpw-row">Successes needed <input type="number" name="goal" value="5" min="1"></label>
       <label class="vpw-row">On failure <select name="onFail"><option value="keep">Keep the total</option><option value="reset">Reset to 0</option></select></label>
       <label class="vpw-row">On botch <select name="onBotch"><option value="reset">Reset to 0</option><option value="lock">Reset and lock</option></select></label>
@@ -101,14 +102,7 @@ export async function openRequestWindow() {
 
   const res = await DialogV2().wait({
     window: { title: 'Request Roll' }, content, rejectClose: false, position: { width: 520 },
-    render: (event, dialog) => {
-      const el = dialog?.element ?? event?.target?.element;
-      const type = el?.querySelector('select[name="type"]');
-      const ext = el?.querySelector('.vpw-ext-fields');
-      const sync = () => { if (ext) ext.hidden = type?.value === 'single'; };
-      type?.addEventListener('change', sync);
-      sync();
-    },
+    render: (event, dialog) => deps.bindDependents(dialog?.element ?? event?.target?.element),
     buttons: [
       { action: 'send', label: 'Send request', icon: 'fas fa-paper-plane', default: true, callback: (ev, btn) => {
         const f = btn.form;
@@ -309,7 +303,8 @@ function onSceneControls(controls) {
   if (tokens?.tools) tokens.tools[tool.name] = tool;
 }
 
-export function registerRequests({ socket }) {
+export function registerRequests({ socket, bindDependents }) {
   SOCKET = socket;
+  deps = { bindDependents };
   Hooks.on('getSceneControlButtons', onSceneControls);
 }
