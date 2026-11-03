@@ -71,7 +71,7 @@ Object.assign(globalThis, {
     users: { get activeGM() { return { isSelf: game.user.isGM }; } },
     settings: { register() {}, registerMenu() {}, get: (m, k) => settings[`${m}.${k}`], set: async (m, k, v) => { settings[`${m}.${k}`] = v; } },
     modules: { get: () => (globalThis.__mod ??= {}) },
-    messages: { get: id => messages.find(m => m.id === id) },
+    messages: { get: id => messages.find(m => m.id === id), get contents() { return messages; } },
     socket: { emit: (ch, d) => emitted.push([ch, d]), on: (ch, f) => { globalThis.__sock = f; } },
     vtm: { async rollDicePool(a, opts) { rollCalls.push({ actor: a.name, ...opts }); return rollScript.length ? rollScript.shift() : { total: 1, outcome: 'success' }; } },
   },
@@ -237,4 +237,108 @@ test('Elder power uses its own contest config (resisted)', async () => {
   const card = lastResist();
   assert.equal(card.flags['vtm-v20-powers'].power, 'Dominate: Mass Mesmerize');
   assert.equal(card.flags['vtm-v20-powers'].atkTotal, 4);
+});
+
+// ---- extended actions ------------------------------------------------------
+const EXT = 'vtm-v20-powers';
+const lastExt = () => [...messages].reverse().find(m => m.flags?.[EXT]?.kind === 'extended');
+function renderExt(msg) {
+  const btns = {};
+  const slot = { innerHTML: '', querySelector(sel) { const k = sel.match(/data-ext="(\w+)"/)?.[1]; if (!k || !this.innerHTML.includes(`data-ext="${k}"`)) return null; return (btns[k] ??= { addEventListener(_, f) { this.click = () => f({ preventDefault() {} }); } }); } };
+  const root = { querySelector: s => (s === '.vpw-ext-slot' ? slot : null) };
+  Object.setPrototypeOf(root, HTMLElement.prototype);
+  hooks.renderChatMessageHTML[0](msg, root);
+  return { slot, btns };
+}
+const forgetful = { trait: 'attributes.manipulation', label: 'Dominate: Forgetful Mind', difficulty: 7 };
+
+test('current Willpower trait reads willpower.value; permanent stays max', async () => {
+  const { traitValue, traitLabel } = await import('../scripts/logic.mjs');
+  assert.equal(traitValue({ willpower: { value: 3, max: 8 } }, 'willpowerCurrent'), 3);
+  assert.equal(traitValue({ willpower: { value: 3, max: 8 } }, 'willpower'), 8);
+  assert.equal(traitLabel('willpowerCurrent'), 'Willpower (current)');
+});
+
+test('extended: card accumulates toward the target current Willpower, failure resets', async () => {
+  marcus.system.willpower.value = 3;
+  as(gm);
+  await api.setConfig('discipline', 'Dominate', 'lvl3', { extended: { enabled: true, goalMode: 'target', traits: ['willpowerCurrent', ''], onFail: 'reset', onBotch: 'lock' } });
+  as(p1); currentTarget = { actor: marcus };
+  const before = messages.length;
+  rollScript.push({ total: 2, outcome: 'success' });
+  await game.vtm.rollDicePool(lucien, forgetful);
+  const card = lastExt();
+  assert.equal(messages.length, before + 1);
+  assert.equal(rollCalls.at(-1).difficulty, 7); // fixed Diff untouched
+  assert.deepEqual([card.flags[EXT].total, card.flags[EXT].goal, card.flags[EXT].status], [2, 3, 'open']);
+  rollScript.push({ total: 0, outcome: 'failure' });
+  await game.vtm.rollDicePool(lucien, forgetful);
+  assert.equal(lastExt(), card); // same card updated
+  assert.equal(card.flags[EXT].total, 0);
+  rollScript.push({ total: 3, outcome: 'success' });
+  await game.vtm.rollDicePool(lucien, forgetful);
+  assert.equal(card.flags[EXT].status, 'done');
+  assert.equal(card.flags[EXT].log.length, 3);
+  assert.match(renderExt(card).slot.innerHTML, /Goal reached/);
+});
+
+test('extended: a finished tracker starts a new card; botch locks players out, GM can roll', async () => {
+  as(p1); currentTarget = { actor: marcus };
+  const done = lastExt();
+  rollScript.push({ total: 0, outcome: 'botch' });
+  await game.vtm.rollDicePool(lucien, forgetful);
+  const card = lastExt();
+  assert.notEqual(card, done);
+  assert.equal(card.flags[EXT].status, 'locked');
+  const calls = rollCalls.length;
+  await game.vtm.rollDicePool(lucien, forgetful);
+  assert.equal(rollCalls.length, calls); // blocked
+  assert.match(notes.at(-1), /locked/);
+  as(gm);
+  rollScript.push({ total: 1, outcome: 'success' });
+  await game.vtm.rollDicePool(lucien, forgetful);
+  assert.equal(rollCalls.length, calls + 1);
+  assert.deepEqual([card.flags[EXT].status, card.flags[EXT].total], ['open', 1]); // GM override reopens it
+  rollScript.push({ total: 0, outcome: 'botch' });
+  await game.vtm.rollDicePool(lucien, forgetful);
+  assert.equal(card.flags[EXT].status, 'locked');
+  const { btns } = renderExt(card);
+  btns.unlock.click();
+  await new Promise(r => setTimeout(r, 0));
+  assert.equal(card.flags[EXT].status, 'open');
+});
+
+test('extended: Roll again keeps the original target even with nothing targeted', async () => {
+  as(p1); currentTarget = null;
+  const card = lastExt();
+  const { btns } = renderExt(card);
+  rollScript.push({ total: 2, outcome: 'success' });
+  btns.again.click();
+  await new Promise(r => setTimeout(r, 0));
+  assert.equal(rollCalls.at(-1).label, 'Dominate: Forgetful Mind');
+  assert.equal(card.flags[EXT].targetName, 'Marcus');
+  assert.ok(card.flags[EXT].total >= 2);
+});
+
+test('extended: no target -> warns and rolls one-shot, no card', async () => {
+  as(p1); currentTarget = null;
+  const n = messages.length;
+  await game.vtm.rollDicePool(lucien, forgetful);
+  assert.equal(messages.length, n);
+  assert.match(notes.at(-1), /track the extended total by hand/);
+});
+
+test('extended: GM socket writes only tracker fields', async () => {
+  as(gm);
+  const card = lastExt();
+  globalThis.__sock({ action: 'extended', msgId: card.id, update: { [`flags.${EXT}.total`]: 9, [`flags.${EXT}.kind`]: 'hack', content: 'x' } });
+  assert.equal(card.flags[EXT].total, 9);
+  assert.equal(card.flags[EXT].kind, 'extended');
+});
+
+test('extended summary and activity', async () => {
+  const { normalizeConfig, isActive, summarize } = await import('../scripts/logic.mjs');
+  const c = normalizeConfig({ extended: { enabled: true, goalMode: 'fixed', goal: 4, onBotch: 'lock' } });
+  assert.equal(isActive(c), true);
+  assert.match(summarize(c), /Extended: goal 4 \(botch locks for the scene\)/);
 });

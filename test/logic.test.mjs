@@ -56,7 +56,7 @@ test('config normalization, activity, keys, summary', () => {
   assert.equal(powerKey('discipline', 'St. Dominate', 'lvl1'), 'discipline|st dominate|lvl1');
   const s = summarize(normalizeConfig({ diff: { mode: 'target', traits: ['willpower', ''] }, resist: { enabled: true, traits: ['willpower', ''], diff: 7 } }));
   assert.match(s, /Diff = target's Willpower/);
-  assert.match(s, /Resisted: Willpower vs diff 7/);
+  assert.match(s, /Resisted: Willpower \(permanent\) vs diff 7/);
 });
 
 import { ELDER_TYPE, elderPowersFor, elderUsable, elderLabel } from '../scripts/logic.mjs';

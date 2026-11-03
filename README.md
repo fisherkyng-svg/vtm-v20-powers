@@ -1,10 +1,11 @@
-# VtM V20 Powers (`vtm-v20-powers`) v0.4.0
+# VtM V20 Powers (`vtm-v20-powers`) v0.5.0
 
 Contested Discipline powers for the **Vampire: The Masquerade V20** Foundry system (`vtm-v20` ≥ 1.1.5, Foundry v13–14).
 
 - **Difficulty from the target.** A power's difficulty comes from the targeted token's traits, for example the target's permanent Willpower, or Wits + Courage.
 - **Resisted rolls.** After a successful activation, the target gets a one-click **Roll resistance** button in chat. The module then posts the winner and the net successes.
 - **Elder powers (levels 6–10).** A new **Elder Power** item type. Several can exist per level, and they're listed under their Discipline on the character sheet.
+- **Extended actions.** Powers like Quell the Beast build successes across rolls toward a goal on one chat tracker card, with reset-on-failure and lock-on-botch rules.
 - **Discipline stat overrides.** Your own Diff, roll traits, and cost for any Discipline power. They beat the system compendium (which rebuilds itself from code) and every character's copy.
 - **Paths of Enlightenment.** A new **Path of Enlightenment** item type. Custom paths join every sheet's path list with their own virtues, bearing, ethics, and Hierarchy of Sins.
 
@@ -35,6 +36,28 @@ The setup is stored per **Discipline name + level** for the whole world. Configu
 4. The result card shows both success counts and who won by how many. **Ties go to the resister.**
 
 If no token is targeted, the power rolls at its fixed difficulty, and you resolve any resistance by hand. A failed or botched activation posts no resist card.
+
+## Extended actions
+
+**Set up.** Open the power's **Contest…** dialog and tick **Extended action**. Then set:
+
+- **Goal from:** the target's traits (for example **Willpower (current)**), the roller's own traits, or a fixed number. Add a second trait or a modifier if needed.
+- **On failure:** keep the total (the V20 default) or reset it to 0.
+- **On botch:** reset to 0, or reset and **lock** the power against that target for the scene.
+
+A power can be resisted or extended, not both.
+
+*Example, Quell the Beast (Animalism 3):* Goal from the target's traits, Willpower (current), On failure Reset to 0, On botch Reset and lock for the scene. Its difficulty of 7 comes from the power's Diff box, which you can set with **Stats…**.
+
+**At the table.** Target the token and roll the power. The first roll posts a tracker card, and later rolls update the same card. Each card covers one roller, one power and one target. The card shows the progress bar, a roll log, and these buttons:
+
+- **Roll again:** rerolls the same power at the same target, even if nothing is targeted now. The normal roll dialog still opens.
+- **Close:** ends the attempt. The roller's owner or the GM can use it.
+- **Clear lock:** GM only, after a locking botch.
+
+Locks lapse when the scene changes or the combat they began in ends. Players can't roll a locked power on that target. The Storyteller gets a warning but can roll anyway, which reopens the tracker.
+
+**Willpower (current) vs (permanent).** Trait pickers now offer both. Setups saved before 0.5.0 that use "Willpower" keep reading **permanent** Willpower. The **Manage Overrides** window lists them, so you can switch the ones the book says use current Willpower.
 
 ## Discipline Stat Overrides
 

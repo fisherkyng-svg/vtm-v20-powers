@@ -1,9 +1,10 @@
 import { registerElder } from './elder.mjs';
 import { registerPaths } from './paths.mjs';
+import { setupExtended, checkLock, recordRoll, renderTracker, onExtendedSocket, takeForcedTarget } from './extended.mjs';
 import { registerOverrides, decorateRow, applyStats, editStats, allStats } from './overrides.mjs';
 import {
   MODULE_ID, POWER_ITEM_TYPES, ELDER_TYPE, powerKey, traitLabel, normalizeConfig, isActive,
-  targetDifficulty, resistDifficulty, contest, findPower, summarize, titleCase, defaultConfig,
+  targetDifficulty, resistDifficulty, contest, findPower, summarize, titleCase, defaultConfig, needsTarget,
 } from './logic.mjs';
 
 const SYSTEM_ID = 'vtm-v20';
@@ -36,7 +37,7 @@ function traitOptions() {
   for (const [group, list] of Object.entries(V.attributes ?? {})) for (const k of list) out.push({ key: `attributes.${k}`, group: `Attributes (${titleCase(group)})` });
   for (const [group, list] of Object.entries(V.abilities ?? {})) for (const k of list) out.push({ key: `abilities.${k}`, group: titleCase(group) });
   for (const k of ['conscience', 'selfControl', 'courage']) out.push({ key: `virtues.${k}`, group: 'Virtues' });
-  out.push({ key: 'willpower', group: 'Other' }, { key: 'humanity', group: 'Other' });
+  out.push({ key: 'willpowerCurrent', group: 'Other' }, { key: 'willpower', group: 'Other' }, { key: 'humanity', group: 'Other' });
   return out;
 }
 
@@ -53,24 +54,33 @@ function traitSelect(name, value, { allowEmpty = true } = {}) {
 // Roll interception
 
 async function wrappedRoll(actor, opts = {}) {
+  const forced = takeForcedTarget();
   const match = actor?.items && opts?.label ? findPower(actor.items, opts.label) : null;
   const cfg = match ? getConfig(...match.cfg) : null;
   if (!cfg || !isActive(cfg)) return originalRoll(actor, opts);
 
-  const target = game.user.targets?.first?.()?.actor ?? null;
-  if (!target) {
-    ui.notifications.warn(`${opts.label}: no token targeted. Rolling at the fixed difficulty${cfg.resist.enabled ? '; resolve the resistance by hand' : ''}.`);
+  const target = forced ?? game.user.targets?.first?.()?.actor ?? null;
+  if (!target && needsTarget(cfg)) {
+    const extra = [cfg.resist.enabled ? 'resolve the resistance by hand' : null,
+      cfg.extended.enabled ? 'track the extended total by hand' : null].filter(Boolean).join('; ');
+    ui.notifications.warn(`${opts.label}: no token targeted. Rolling at the fixed difficulty${extra ? `; ${extra}` : ''}.`);
     return originalRoll(actor, opts);
   }
+  if (cfg.extended.enabled && !checkLock(actor, target, match)) return null;
 
   let difficulty = opts.difficulty;
   let label = opts.label;
-  if (cfg.diff.mode === 'target') {
+  if (target && cfg.diff.mode === 'target') {
     difficulty = targetDifficulty(cfg, target.system);
     label = `${opts.label} vs ${target.name}`;
   }
   const result = await originalRoll(actor, { ...opts, difficulty, label });
-  if (!result || !cfg.resist.enabled) return result;
+  if (!result) return result;
+  if (cfg.extended.enabled) {
+    await recordRoll(actor, target, match, cfg, opts, result);
+    return result;
+  }
+  if (!cfg.resist.enabled) return result;
   if (result.outcome !== 'success') return result; // nothing for the target to resist
   await postResistCard(actor, target, opts.label, cfg, result.total);
   return result;
@@ -138,6 +148,7 @@ async function markResolved(message, defTotal) {
 }
 
 function onSocket(data) {
+  if (onExtendedSocket(data)) return;
   if (data?.action !== 'resolve') return;
   if (!game.users.activeGM?.isSelf) return; // exactly one GM client writes
   const msg = game.messages.get(data.msgId);
@@ -148,6 +159,7 @@ function onSocket(data) {
 
 function onRenderMessage(message, html) {
   const f = flagsOf(message);
+  if (f?.kind === 'extended') return renderTracker(message, html instanceof HTMLElement ? html : html?.[0]);
   if (f?.kind !== 'resist') return;
   const root = html instanceof HTMLElement ? html : html?.[0];
   const slot = root?.querySelector('.vpw-resist-slot');
@@ -204,7 +216,24 @@ async function editConfig(item, lvl) {
       <label class="vpw-row">+ trait ${traitSelect('resA2', cfg.resist.attackerTraits[1])}</label>
       <label class="vpw-row">Modifier <input type="number" name="resMod" value="${cfg.resist.mod}" step="1"></label>
     </fieldset>
-    <p class="vpw-sub">Applies to ${scope}. Ties go to the resister.</p></div>`;
+    <fieldset><legend>Extended action</legend>
+      <label class="vpw-check"><input type="checkbox" name="extEnabled" ${cfg.extended.enabled ? 'checked' : ''}> Successes accumulate toward a goal</label>
+      <label class="vpw-row">Goal from <select name="extMode">
+        <option value="target" ${cfg.extended.goalMode === 'target' ? 'selected' : ''}>The target's traits</option>
+        <option value="self" ${cfg.extended.goalMode === 'self' ? 'selected' : ''}>The roller's own traits</option>
+        <option value="fixed" ${cfg.extended.goalMode === 'fixed' ? 'selected' : ''}>A fixed number</option></select></label>
+      <label class="vpw-row">Goal trait ${traitSelect('extT1', cfg.extended.traits[0], { allowEmpty: false })}</label>
+      <label class="vpw-row">+ trait ${traitSelect('extT2', cfg.extended.traits[1])}</label>
+      <label class="vpw-row">Modifier <input type="number" name="extMod" value="${cfg.extended.mod}" step="1"></label>
+      <label class="vpw-row">Fixed goal <input type="number" name="extGoal" value="${cfg.extended.goal}" min="1"></label>
+      <label class="vpw-row">On failure <select name="extFail">
+        <option value="keep" ${cfg.extended.onFail === 'keep' ? 'selected' : ''}>Keep the total</option>
+        <option value="reset" ${cfg.extended.onFail === 'reset' ? 'selected' : ''}>Reset to 0</option></select></label>
+      <label class="vpw-row">On botch <select name="extBotch">
+        <option value="reset" ${cfg.extended.onBotch === 'reset' ? 'selected' : ''}>Reset to 0</option>
+        <option value="lock" ${cfg.extended.onBotch === 'lock' ? 'selected' : ''}>Reset and lock for the scene</option></select></label>
+    </fieldset>
+    <p class="vpw-sub">Applies to ${scope}. Ties go to the resister. A power can be resisted or extended, not both.</p></div>`;
   const res = await DialogV2().wait({
     window: { title: `Contest: ${title}` }, content, rejectClose: false, position: { width: 480 },
     buttons: [
@@ -214,12 +243,18 @@ async function editConfig(item, lvl) {
           diff: { mode: e.diffMode.value, traits: [e.diffT1.value, e.diffT2.value], mod: e.diffMod.value },
           resist: { enabled: e.resEnabled.checked, traits: [e.resT1.value, e.resT2.value], diffMode: e.resDiffMode.value,
             diff: e.resDiff.value, attackerTraits: [e.resA1.value, e.resA2.value], mod: e.resMod.value },
+          extended: { enabled: e.extEnabled.checked, goalMode: e.extMode.value, goal: e.extGoal.value,
+            traits: [e.extT1.value, e.extT2.value], mod: e.extMod.value, onFail: e.extFail.value, onBotch: e.extBotch.value },
         });
       } },
       { action: 'clear', label: 'Clear' },
       { action: 'cancel', label: 'Cancel' },
     ],
   });
+  if (res && typeof res === 'object' && res.resist.enabled && res.extended.enabled) {
+    ui.notifications.warn('A power can be resisted or extended, not both. Nothing was saved.');
+    return;
+  }
   if (res === 'clear') await setConfig(...addr, null);
   else if (res && typeof res === 'object') await setConfig(...addr, res);
   else return;
@@ -273,7 +308,8 @@ Hooks.once('init', () => {
   Hooks.on('renderChatMessageHTML', onRenderMessage);
   registerElder({ getConfig, editConfig, traitSelect, summarize, keepEnabled });
   registerPaths();
-  registerOverrides({ traitSelect, keepEnabled });
+  registerOverrides({ traitSelect, keepEnabled, allConfigs });
+  setupExtended({ SOCKET });
   game.modules.get(MODULE_ID).api = { getConfig, setConfig, editConfig, rollResist, applyStats, editStats, allStats };
 });
 

@@ -61,3 +61,15 @@
 .vpw-stat-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .vpw-stat-item { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px; font-size: 14px; }
 .vpw-stat-item button, .vpw-stat-manager button[data-action="reapply"] { min-height: 30px; font-size: 14px; cursor: pointer; }
+
+/* Extended action tracker */
+.vpw-ext-progress { position: relative; height: 22px; border: 1px solid currentColor; border-radius: 4px; overflow: hidden; margin: 4px 0; }
+.vpw-ext-bar { height: 100%; background: #8a1c1c; opacity: 0.55; }
+.vpw-ext-progress > span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; }
+.vpw-ext-status { margin: 3px 0; }
+.vpw-ext-done b { color: #3a7d44; }
+.vpw-ext-locked b { color: #b5502b; }
+.vpw-ext-log { margin: 4px 0; padding-left: 0; list-style: none; font-size: 13px; max-height: 9em; overflow-y: auto; }
+.vpw-ext-log li { display: flex; justify-content: space-between; gap: 6px; }
+.vpw-ext-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+.vpw-ext-buttons button { flex: 1 1 auto; min-height: 34px; font-size: 14px; cursor: pointer; }

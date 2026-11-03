@@ -22,10 +22,11 @@ export function powerKey(type, name, lvl) {
 }
 
 // Trait keys use the system's own format: attributes.x, abilities.x, virtues.x,
-// willpower (permanent), humanity (Humanity or Path rating)
+// willpower (permanent), willpowerCurrent (current pool), humanity (Humanity or Path rating)
 export function traitLabel(key) {
   if (!key) return '';
-  if (key === 'willpower') return 'Willpower';
+  if (key === 'willpower') return 'Willpower (permanent)';
+  if (key === 'willpowerCurrent') return 'Willpower (current)';
   if (key === 'humanity') return 'Humanity/Path';
   return titleCase(key.split('.').pop());
 }
@@ -33,6 +34,7 @@ export function traitLabel(key) {
 export function traitValue(system, key) {
   if (!system || !key) return 0;
   if (key === 'willpower') return Number(system.willpower?.max) || 0;
+  if (key === 'willpowerCurrent') return Number(system.willpower?.value) || 0;
   if (key === 'humanity') return Number(system.humanity) || 0;
   const [group, name] = key.split('.');
   return Number(system[group]?.[name]) || 0;
@@ -48,6 +50,7 @@ export function defaultConfig() {
   return {
     diff: { mode: 'fixed', traits: ['willpower', ''], mod: 0 },
     resist: { enabled: false, traits: ['willpower', ''], diffMode: 'fixed', diff: 6, attackerTraits: ['', ''], mod: 0 },
+    extended: { enabled: false, goalMode: 'target', goal: 5, traits: ['willpowerCurrent', ''], mod: 0, onFail: 'keep', onBotch: 'reset' },
   };
 }
 
@@ -69,11 +72,20 @@ export function normalizeConfig(cfg) {
       attackerTraits: pair(cfg.resist?.attackerTraits, d.resist.attackerTraits),
       mod: Math.trunc(Number(cfg.resist?.mod) || 0),
     },
+    extended: {
+      enabled: !!cfg.extended?.enabled,
+      goalMode: ['fixed', 'target', 'self'].includes(cfg.extended?.goalMode) ? cfg.extended.goalMode : d.extended.goalMode,
+      goal: Math.max(1, Math.trunc(Number(cfg.extended?.goal) || d.extended.goal)),
+      traits: pair(cfg.extended?.traits, d.extended.traits),
+      mod: Math.trunc(Number(cfg.extended?.mod) || 0),
+      onFail: cfg.extended?.onFail === 'reset' ? 'reset' : 'keep',
+      onBotch: cfg.extended?.onBotch === 'lock' ? 'lock' : 'reset',
+    },
   };
 }
 
 export function isActive(cfg) {
-  return !!cfg && (cfg.diff?.mode === 'target' || !!cfg.resist?.enabled);
+  return !!cfg && (cfg.diff?.mode === 'target' || !!cfg.resist?.enabled || !!cfg.extended?.enabled);
 }
 
 // Attacker's difficulty taken from the target's traits
@@ -145,6 +157,12 @@ export function summarize(cfg) {
       ? `your ${traitsText(cfg.resist.attackerTraits, cfg.resist.mod)}`
       : String(cfg.resist.diff);
     parts.push(`Resisted: ${traitsText(cfg.resist.traits)} vs diff ${rd}`);
+  }
+  if (cfg.extended?.enabled) {
+    const e = cfg.extended;
+    const goal = e.goalMode === 'fixed' ? String(e.goal) : `${e.goalMode === 'target' ? "target's" : 'own'} ${traitsText(e.traits, e.mod)}`;
+    const rules = [e.onFail === 'reset' ? 'failure resets' : null, e.onBotch === 'lock' ? 'botch locks for the scene' : 'botch resets'].filter(Boolean).join(', ');
+    parts.push(`Extended: goal ${goal} (${rules})`);
   }
   return parts.join(' · ');
 }
@@ -261,4 +279,44 @@ export function summarizeStat(o) {
   if ('difficulty' in o) parts.push(`Diff ${o.difficulty}`);
   if ('cost' in o) parts.push(o.cost ? `Cost ${o.cost}` : 'No cost');
   return `Override: ${parts.join(' · ')}`;
+}
+
+// ---------------------------------------------------------------------------
+// Extended actions: accumulate successes across rolls toward a goal
+
+// Does this setup need a targeted token to work?
+export function needsTarget(cfg) {
+  return cfg.diff.mode === 'target' || cfg.resist.enabled || (cfg.extended.enabled && cfg.extended.goalMode === 'target');
+}
+
+// Goal in successes; null when it needs a target and there isn't one
+export function extendedGoal(cfg, targetSystem, selfSystem) {
+  const e = cfg.extended;
+  if (e.goalMode === 'fixed') return Math.max(1, e.goal);
+  const sys = e.goalMode === 'target' ? targetSystem : selfSystem;
+  if (!sys) return null;
+  return Math.max(1, sumTraits(sys, e.traits) + e.mod);
+}
+
+// One roll applied to the tracker state. Statuses: open, done, locked, closed.
+export function advanceExtended(state, result, cfg) {
+  const e = cfg.extended;
+  const s = { total: 0, goal: 1, status: 'open', log: [], ...state };
+  s.log = [...(s.log ?? [])];
+  const outcome = result?.outcome ?? 'failure';
+  const gained = outcome === 'success' ? Math.max(0, Number(result.total) || 0) : 0;
+  let note = '';
+  if (outcome === 'success') {
+    s.total += gained;
+    if (s.total >= s.goal) { s.status = 'done'; note = 'goal reached'; }
+  } else if (outcome === 'botch') {
+    s.total = 0;
+    if (e.onBotch === 'lock') { s.status = 'locked'; note = 'botch: locked for the scene'; } else note = 'botch: total reset';
+  } else if (e.onFail === 'reset') { s.total = 0; note = 'failure: total reset'; }
+  s.log.push({ n: s.log.length + 1, outcome, gained, total: s.total, note });
+  return s;
+}
+
+export function extendedKey(actorUuid, cfgAddr, targetUuid) {
+  return [actorUuid, ...cfgAddr, targetUuid || 'none'].join('|');
 }

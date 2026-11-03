@@ -206,6 +206,26 @@ export function decorateRow(item, lvl, block) {
   anchor?.after(row);
 }
 
+// Contest setups still reading permanent Willpower, so the GM can switch
+// the ones the book says use the current pool
+function permanentWillpowerList() {
+  const rows = [];
+  for (const [key, cfg] of Object.entries(deps.allConfigs?.() ?? {})) {
+    const uses = [];
+    if (cfg?.diff?.mode === 'target' && cfg.diff.traits?.includes('willpower')) uses.push('difficulty');
+    if (cfg?.resist?.enabled && (cfg.resist.traits?.includes('willpower') || cfg.resist.attackerTraits?.includes('willpower'))) uses.push('resistance');
+    if (cfg?.extended?.enabled && cfg.extended.goalMode !== 'fixed' && cfg.extended.traits?.includes('willpower')) uses.push('extended goal');
+    if (!uses.length) continue;
+    const [type, name, lvl] = key.split('|');
+    const where = lvl === 'elder' ? `${name} (Elder)` : `${name} ${lvl.replace('lvl', '')}`;
+    rows.push(`<li>${esc(where)} · ${uses.join(', ')}</li>`);
+  }
+  if (!rows.length) return '';
+  return `<h4>Contest setups using Willpower (permanent)</h4>
+    <p class="vpw-sub">Most V20 powers use the target's <b>current</b> Willpower. Open each power's Contest… and switch the trait to Willpower (current) where the book says so.</p>
+    <ul class="vpw-stat-list">${rows.join('')}</ul>`;
+}
+
 // ---------------------------------------------------------------------------
 // Manage window (Module Settings → Discipline Stat Overrides)
 
@@ -215,7 +235,7 @@ function defineManager() {
     static DEFAULT_OPTIONS = {
       id: 'vpw-stat-overrides',
       classes: ['vtm-v20', 'vpw-stat-manager'],
-      window: { title: 'Discipline Stat Overrides', resizable: true },
+      window: { title: 'Discipline Overrides & Setups', resizable: true },
       position: { width: 520, height: 'auto' },
       actions: {
         clear: async function (ev, target) {
@@ -235,6 +255,7 @@ function defineManager() {
       div.className = 'vpw-form';
       div.innerHTML = `${rows.length ? `<ul class="vpw-stat-list">${rows.join('')}</ul>` : '<p>No overrides yet. Use <b>Stats…</b> on a Discipline power to add one.</p>'}
         <p class="vpw-sub">Clearing leaves existing copies as they are; the compendium returns to the book value on its next rebuild.</p>
+        ${permanentWillpowerList()}
         <button type="button" data-action="reapply"><i class="fas fa-rotate"></i> Re-apply all</button>`;
       return div;
     }
