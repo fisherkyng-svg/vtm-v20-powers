@@ -135,6 +135,7 @@ function defineSheet() {
 
     _onRender(context, options) {
       super._onRender?.(context, options);
+      deps.keepEnabled?.(this.element.querySelector('button[data-action="contest"]'));
       if (this.isEditable) return;
       for (const el of this.element.querySelectorAll('input, select, textarea')) el.disabled = true;
     }

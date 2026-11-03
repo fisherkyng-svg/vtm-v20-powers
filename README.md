@@ -1,4 +1,4 @@
-# VtM V20 Powers (`vtm-v20-powers`) v0.3.0
+# VtM V20 Powers (`vtm-v20-powers`) v0.3.2
 
 Contested Discipline powers for the **Vampire: The Masquerade V20** Foundry system (`vtm-v20` ≥ 1.1.5, Foundry v13–14).
 
@@ -17,7 +17,7 @@ Then enable it under **Manage Modules**.
 
 ## Setting up a power (Storyteller)
 
-1. Open any Discipline or Path item. This can be the world item, or a copy on a character sheet.
+1. Open any Discipline or Path item. This can be the world item, a copy on a character sheet, or the locked item in the system compendium (the button stays usable for the GM because it only writes the world setting, not the item).
 2. Under each power, click **Contest…**.
 3. Configure:
    - **Attacker's difficulty:** *Fixed* uses the power's Diff box. *From the target's traits* lets you pick one or two traits plus a modifier.

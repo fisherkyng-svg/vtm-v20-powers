@@ -225,6 +225,19 @@ async function editConfig(item, lvl) {
   item.sheet?.render();
 }
 
+// Locked sheets (compendium items, view-only copies) get their form controls
+// disabled by Foundry. The Contest button only writes the world setting, never
+// the item, so the GM keeps it usable there; the observer undoes any later
+// re-disable pass.
+function keepEnabled(btn) {
+  if (!btn || !game.user.isGM) return;
+  btn.disabled = false;
+  btn.removeAttribute('disabled');
+  if (btn._vpwObserver) return;
+  btn._vpwObserver = new MutationObserver(() => { if (btn.disabled) btn.disabled = false; });
+  btn._vpwObserver.observe(btn, { attributes: true, attributeFilter: ['disabled'] });
+}
+
 function onRenderItemSheet(app, element) {
   const item = app.document;
   if (game.system.id !== SYSTEM_ID || !POWER_ITEM_TYPES.includes(item?.type)) return;
@@ -242,7 +255,9 @@ function onRenderItemSheet(app, element) {
     row.className = 'vpw-config';
     row.innerHTML = `<span class="vpw-summary">${text ? `<i class="fas fa-crosshairs"></i> ${esc(text)}` : ''}</span>
       ${game.user.isGM ? `<button type="button" class="vpw-edit" title="Contest settings"><i class="fas fa-crosshairs"></i> ${text ? 'Edit' : 'Contest…'}</button>` : ''}`;
-    row.querySelector('.vpw-edit')?.addEventListener('click', ev => { ev.preventDefault(); ev.stopPropagation(); editConfig(item, lvl); });
+    const btn = row.querySelector('.vpw-edit');
+    btn?.addEventListener('click', ev => { ev.preventDefault(); ev.stopPropagation(); editConfig(item, lvl); });
+    keepEnabled(btn);
     (block.querySelector('.power-meta') ?? block.querySelector('.power-header'))?.after(row);
   }
 }
@@ -254,7 +269,7 @@ Hooks.once('init', () => {
   game.settings.register(MODULE_ID, 'configs', { scope: 'world', config: false, type: Object, default: {} });
   Hooks.on('renderItemSheetV2', onRenderItemSheet);
   Hooks.on('renderChatMessageHTML', onRenderMessage);
-  registerElder({ getConfig, editConfig, traitSelect, summarize });
+  registerElder({ getConfig, editConfig, traitSelect, summarize, keepEnabled });
   registerPaths();
   game.modules.get(MODULE_ID).api = { getConfig, setConfig, editConfig, rollResist };
 });
