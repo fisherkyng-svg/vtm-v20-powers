@@ -1,3 +1,4 @@
+import { attachCostButton } from './cost.mjs';
 // Discipline stat overrides: GM-set Diff / roll traits / cost per Discipline
 // power that win over the system's compendium data (which is rebuilt from code)
 // and over every copy of the Discipline, on characters and in the world.
@@ -163,6 +164,10 @@ export async function editStats(item, lvl) {
 
   const res = await DialogV2().wait({
     window: { title: `Stats: ${item.name} · ${power.name || lvl}` }, content, rejectClose: false, position: { width: 480 },
+    render: (event, dialog) => {
+      const root = dialog?.element ?? event?.target?.element;
+      attachCostButton(root?.querySelector('input[name="cost"]'), { title: `${item.name} · ${power.name || lvl}` });
+    },
     buttons: [
       { action: 'save', label: 'Save', icon: 'fas fa-check', default: true, callback: (ev, btn) => {
         const e = btn.form.elements;

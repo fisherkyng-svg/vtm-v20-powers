@@ -1,4 +1,4 @@
-# VtM V20 Powers (`vtm-v20-powers`) v0.7.0
+# VtM V20 Powers (`vtm-v20-powers`) v0.8.0
 
 Contested Discipline powers for the **Vampire: The Masquerade V20** Foundry system (`vtm-v20` ≥ 1.1.5, Foundry v13–14).
 
@@ -37,6 +37,22 @@ The setup is stored per **Discipline name + level** for the whole world. Configu
 4. The result card shows both success counts and who won by how many. **Ties go to the resister.**
 
 If no token is targeted, the power rolls at its fixed difficulty, and you resolve any resistance by hand. A failed or botched activation posts no resist card.
+
+## Power costs
+
+Every power **Cost** box gets a **coins button**. That includes Discipline and Path powers 1–5, Elder Powers, and the **Stats…** override dialog. The button shows what the system will charge, e.g. "1 blood · 1 WP". Click it to set:
+
+- **Blood**, with **Or more** for variable costs (writes `2+ blood`; the player picks the amount, with this as the minimum).
+- **Willpower**.
+- **Note**: free text such as "per turn". It's ignored for charging.
+
+Save writes the box in the exact format the system reads, e.g. `2+ blood, 1 willpower (per turn)`. You can still type in the box yourself.
+
+**Warning state.** If the text is something the system can't charge, like `1 point of blood` or `one blood`, the button turns red and reads **Charges nothing**. The picker also warns if a note contains a number the system would charge, such as "then 3 blood".
+
+**Locked compendium sheets** open the picker read-only. Change those costs with **Stats…**.
+
+**Elder Powers now spend their cost** the same way Discipline powers do. They check the character has enough, ask how much for `+` costs, confirm, deduct, and post the spend line in chat. If the character is short, the power isn't used.
 
 ## Storyteller roll requests
 

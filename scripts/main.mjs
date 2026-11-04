@@ -2,6 +2,7 @@ import { registerElder } from './elder.mjs';
 import { registerPaths } from './paths.mjs';
 import { setupExtended, checkLock, recordRoll, renderTracker, onExtendedSocket, takeForcedTarget } from './extended.mjs';
 import { registerRequests, renderRequest, onRequestSocket, openRequestWindow, createRequest } from './requests.mjs';
+import { decorateCostInputs } from './cost.mjs';
 import { registerOverrides, decorateRow, applyStats, editStats, allStats } from './overrides.mjs';
 import {
   MODULE_ID, POWER_ITEM_TYPES, ELDER_TYPE, powerKey, traitLabel, normalizeConfig, isActive,
@@ -310,6 +311,7 @@ function onRenderItemSheet(app, element) {
   if (game.system.id !== SYSTEM_ID || !POWER_ITEM_TYPES.includes(item?.type)) return;
   const root = element instanceof HTMLElement ? element : element?.[0];
   if (!root) return;
+  decorateCostInputs(item, root, keepEnabled);
   for (const block of root.querySelectorAll('.power-level')) {
     const sel = block.querySelector('select[name$=".primary"]');
     const lvl = sel?.name?.match(/powers\.(lvl\d)\./)?.[1];

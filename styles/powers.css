@@ -102,3 +102,8 @@ label.vpw-dep { flex-direction: row; }
 .vpw-split-slider { display: grid; grid-template-columns: minmax(0, 1fr) minmax(90px, 1.2fr) 2ch; align-items: center; gap: 6px; font-size: 14px; }
 .vpw-split-slider input[type="range"] { width: 100%; min-height: 28px; }
 .vpw-split-sum { margin: 2px 0; font-size: 14px; }
+
+/* Cost picker */
+.vpw-cost-btn { flex: 0 0 auto; min-height: 28px; font-size: 12px; padding: 0 6px; white-space: nowrap; cursor: pointer; }
+.vpw-cost-btn.vpw-cost-warn { color: #b5502b; border-color: #b5502b; }
+.vpw-cost-preview { font-size: 13px; margin: 4px 0 0; }

@@ -68,7 +68,7 @@ Object.assign(globalThis, {
   fromUuidSync: u => actors[u] ?? null,
   game: {
     system: { id: 'vtm-v20' }, user: p1,
-    users: { get activeGM() { return { isSelf: game.user.isGM }; }, get: id => [gm, p1, p2].find(u => u.id === id) },
+    users: { get activeGM() { return { isSelf: game.user.isGM }; }, get: id => [gm, p1, p2].find(u => u.id === id), filter: f => [gm, p1, p2].filter(f) },
     settings: { register() {}, registerMenu() {}, get: (m, k) => settings[`${m}.${k}`], set: async (m, k, v) => { settings[`${m}.${k}`] = v; } },
     modules: { get: () => (globalThis.__mod ??= {}) },
     messages: { get: id => messages.find(m => m.id === id), get contents() { return messages; } },
@@ -493,4 +493,38 @@ test('split request: GM rejects an over-budget allocation', async () => {
   await flush(); await flush(); await flush();
   assert.equal(reqState().rows[0].status, 'open');
   assert.match(notes.at(-1), /over their budget of 4/);
+});
+
+// ---- Elder power cost spending ---------------------------------------------
+test('Elder power: cost blocks when short, spends after confirm, cancel rolls nothing', async () => {
+  as(p1); currentTarget = null;
+  const dlg = foundry.applications.api.DialogV2;
+  const origWait = dlg.wait;
+  lucien.update = async u => { for (const [k, v] of Object.entries(u)) { const parts = k.split('.'); let t = lucien; for (const q of parts.slice(0, -1)) t = (t[q] ??= {}); t[parts.at(-1)] = v; } };
+  elderA.system.cost = '2 blood, 1 willpower';
+  lucien.system.blood = { value: 1 }; lucien.system.willpower.value = 3;
+  let calls = rollCalls.length;
+  assert.equal(await rollElder(elderA), null);
+  assert.equal(rollCalls.length, calls);
+  assert.match(notes.at(-1), /Not enough blood/);
+
+  lucien.system.blood.value = 5;
+  dlg.wait = async () => null; // Cancel
+  assert.equal(await rollElder(elderA), null);
+  assert.equal(rollCalls.length, calls);
+  assert.equal(lucien.system.blood.value, 5);
+
+  dlg.wait = async o => o.buttons[0].callback({}, { form: { elements: {} } });
+  const n = messages.length;
+  await rollElder(elderA);
+  assert.equal(rollCalls.length, calls + 1);
+  assert.deepEqual([lucien.system.blood.value, lucien.system.willpower.value], [3, 2]);
+  assert.match(messages.slice(n).map(m => m.content).join(''), /2 blood spent \(3 remaining\), 1 Willpower spent \(2 remaining\)/);
+
+  elderA.system.cost = '2+ blood';
+  dlg.wait = async o => o.buttons[0].callback({}, { form: { elements: { amount: { value: '9' } } } });
+  await rollElder(elderA);
+  assert.equal(lucien.system.blood.value, 0); // capped at what he had (3)
+  dlg.wait = origWait;
+  elderA.system.cost = '';
 });

@@ -489,3 +489,58 @@ export function resetRequestRow(state, rowId) {
   Object.assign(row, { total: 0, gained: 0, rolls: 0, status: 'open', last: null, log: [], alloc: [], results: [], budget: null });
   return s;
 }
+
+// ---------------------------------------------------------------------------
+// Power costs. parseCost mirrors the vtm-v20 system's own parser exactly
+// (module/item-sheet.mjs), so what the picker writes is what the system charges.
+
+export function parseCost(str) {
+  if (!str) return null;
+  let blood = 0, wp = 0, variable = false;
+  const bm = String(str).match(/(\d+)(\+)?\s*blood/i);
+  if (bm) { blood = parseInt(bm[1], 10); variable = !!bm[2]; }
+  const wm = String(str).match(/(\d+)\s*(?:willpower|wp)/i);
+  if (wm) wp = parseInt(wm[1], 10);
+  return (blood || wp) ? { blood, wp, variable } : null;
+}
+
+// Picker fields -> cost text the system can read
+export function formatCost({ blood = 0, variable = false, wp = 0, note = '' } = {}) {
+  const b = Math.max(0, Math.trunc(Number(blood) || 0));
+  const w = Math.max(0, Math.trunc(Number(wp) || 0));
+  const parts = [];
+  if (b) parts.push(`${b}${variable ? '+' : ''} blood`);
+  if (w) parts.push(`${w} willpower`);
+  const n = String(note ?? '').trim();
+  if (!parts.length) return n;
+  return n ? `${parts.join(', ')} (${n})` : parts.join(', ');
+}
+
+// Cost text -> picker fields. The note is whatever is left once the charged
+// parts are taken out (brackets and separators trimmed).
+export function costFields(str) {
+  const c = parseCost(str) ?? { blood: 0, wp: 0, variable: false };
+  let rest = String(str ?? '');
+  if (c.blood) rest = rest.replace(/(\d+)(\+)?\s*blood(\s*points?)?/i, '');
+  if (c.wp) rest = rest.replace(/(\d+)\s*(?:willpower|wp)(\s*points?)?/i, '');
+  rest = rest.replace(/^[\s,;&+]*(and\b)?[\s,;]*/i, '').replace(/[\s,;]*(and)?[\s,;]*$/i, '').trim();
+  const bracket = rest.match(/^\((.*)\)$/);
+  return { blood: c.blood, variable: c.variable, wp: c.wp, note: (bracket ? bracket[1] : rest).trim() };
+}
+
+// What the button shows: { text, charges, warn }
+export function costStatus(str) {
+  const s = String(str ?? '').trim();
+  if (!s) return { text: 'No cost', charges: false, warn: false };
+  const c = parseCost(s);
+  if (!c) return { text: 'Charges nothing', charges: false, warn: true };
+  const parts = [];
+  if (c.blood) parts.push(`${c.blood}${c.variable ? '+' : ''} blood`);
+  if (c.wp) parts.push(`${c.wp} WP`);
+  return { text: parts.join(' · '), charges: true, warn: false };
+}
+
+// A note the system would also read as a charge
+export function noteHasCharge(note) {
+  return !!parseCost(note);
+}

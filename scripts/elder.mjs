@@ -1,6 +1,7 @@
 // Elder Power items: a module-defined Item subtype for Discipline powers at
 // levels 6-10. Several can exist per level; each is its own Item, so the
 // Storyteller builds a library in the Items sidebar and drags them onto sheets.
+import { spendCost, spentLine, attachCostButton } from './cost.mjs';
 import {
   MODULE_ID, ELDER_TYPE, ELDER_MIN, ELDER_MAX, elderLabel, elderPowersFor, elderUsable,
 } from './logic.mjs';
@@ -49,11 +50,22 @@ export async function rollElder(item) {
     if (!game.user.isGM) return ui.notifications.warn(msg);
     ui.notifications.warn(`${msg} Rolling anyway (Storyteller).`);
   }
+  // Spend first, the same way the system does for Discipline powers
+  const spent = await spendCost(actor, sys.cost, item.name);
+  if (!spent) return null;
+  const line = spentLine(actor, spent);
   if (!sys.primary) {
     // Powers with no roll just announce themselves
     return ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor }),
-      content: `<div class="vpw-card"><h3>${esc(elderLabel(item))}</h3><p>${esc(actor.name)} uses an Elder power (level ${sys.level}).${sys.cost ? ` Cost: ${esc(sys.cost)}.` : ''}</p></div>`,
+      content: `<div class="vpw-card"><h3>${esc(elderLabel(item))}</h3><p>${esc(actor.name)} uses an Elder power (level ${sys.level}).</p>${line ? `<p class="vpw-sub">${esc(line)}</p>` : sys.cost ? `<p class="vpw-sub">Cost: ${esc(sys.cost)}</p>` : ''}</div>`,
+    });
+  }
+  if (line) {
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor }),
+      content: `<div class="vpw-card"><h3>${esc(elderLabel(item))}</h3><p class="vpw-sub">${esc(line)}</p></div>`,
+      whisper: [...new Set([...game.users.filter(u => u.isGM).map(u => u.id), game.user.id])],
     });
   }
   // Same label format as regular powers, so contest settings apply
@@ -136,6 +148,7 @@ function defineSheet() {
     _onRender(context, options) {
       super._onRender?.(context, options);
       deps.keepEnabled?.(this.element.querySelector('button[data-action="contest"]'));
+      attachCostButton(this.element.querySelector('input[name="system.cost"]'), { title: this.document.name });
       if (this.isEditable) return;
       for (const el of this.element.querySelectorAll('input, select, textarea')) el.disabled = true;
     }
