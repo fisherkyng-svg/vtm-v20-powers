@@ -5,7 +5,7 @@
 import {
   MODULE_ID, titleCase, traitLabel, newRequest, applyRequestRoll, requestRollable, singleTotal,
   clearRequestLock, removeRequestRow, splitBudget, splitActionDiff, checkAllocation, applySplitRoll, resetRequestRow,
-  traitValue,
+  traitValue, withDisciplines,
 } from './logic.mjs';
 
 const DialogV2 = () => foundry.applications.api.DialogV2;
@@ -180,9 +180,9 @@ export async function loadSystemRatings() {
   }
 }
 
-function traitDice(actor, key) {
+export function traitDice(actor, key) {
   if (!key) return 0;
-  const sys = actor.system;
+  const sys = withDisciplines(actor);
   if (key.startsWith('virtues.')) return Math.min(traitValue(sys, key), Number(sys.humanity ?? 10)); // system caps Virtue dice
   if (effective && (key.startsWith('attributes.') || key.startsWith('abilities.'))) {
     try { return Number(effective(actor, key)) || 0; } catch { /* fall through */ }

@@ -23,8 +23,29 @@ export function powerKey(type, name, lvl) {
 
 // Trait keys use the system's own format: attributes.x, abilities.x, virtues.x,
 // willpower (permanent), willpowerCurrent (current pool), humanity (Humanity or Path rating)
+// Display names for Discipline trait keys ("disciplines.first tongue" -> "First Tongue")
+export const DISCIPLINE_LABELS = new Map();
+export const disciplineKey = name => `disciplines.${lc(name).replace(/\./g, '')}`;
+export const isDisciplineTrait = key => String(key ?? '').startsWith('disciplines.');
+
+// A system-like object with Discipline ratings added under "disciplines", so
+// every trait reader (difficulty, resist, goals) can use them
+export function withDisciplines(actor) {
+  const sys = actor?.system ?? {};
+  const disciplines = {};
+  for (const i of actor?.items ?? []) {
+    if (i.type !== 'discipline') continue;
+    const k = disciplineKey(i.name).slice('disciplines.'.length);
+    disciplines[k] = Math.max(disciplines[k] ?? 0, Number(i.system?.level) || 0);
+  }
+  return { ...sys, disciplines };
+}
+
 export function traitLabel(key) {
   if (!key) return '';
+  if (isDisciplineTrait(key)) {
+    return DISCIPLINE_LABELS.get(key) ?? key.slice('disciplines.'.length).replace(/\b\w/g, c => c.toUpperCase());
+  }
   if (key === 'willpower') return 'Willpower (permanent)';
   if (key === 'willpowerCurrent') return 'Willpower (current)';
   if (key === 'humanity') return 'Humanity/Path';
@@ -36,6 +57,7 @@ export function traitValue(system, key) {
   if (key === 'willpower') return Number(system.willpower?.max) || 0;
   if (key === 'willpowerCurrent') return Number(system.willpower?.value) || 0;
   if (key === 'humanity') return Number(system.humanity) || 0;
+  if (isDisciplineTrait(key)) return Number(system.disciplines?.[key.slice('disciplines.'.length)]) || 0;
   const [group, name] = key.split('.');
   return Number(system[group]?.[name]) || 0;
 }

@@ -1,4 +1,4 @@
-# VtM V20 Powers (`vtm-v20-powers`) v0.8.0
+# VtM V20 Powers (`vtm-v20-powers`) v0.8.1
 
 Contested Discipline powers for the **Vampire: The Masquerade V20** Foundry system (`vtm-v20` ≥ 1.1.5, Foundry v13–14).
 
@@ -26,6 +26,10 @@ Then enable it under **Manage Modules**.
    - **Attacker's difficulty:** *Fixed* uses the power's Diff box. *From the target's traits* lets you pick one or two traits plus a modifier.
    - **Resisted roll:** tick **Target rolls to resist**. Pick the resist pool (one or two traits). The resist difficulty is a fixed number, taken from the attacker's traits, or **the attacker's successes** plus a modifier (for example +3). It's kept between 2 and 10.
 4. Click **Save**.
+
+**Disciplines as traits.** Every trait picker in this dialog has a **Disciplines** group: the system's Disciplines plus your world ones (e.g. Daimoinon). These read the dots on the character's Discipline item, and a character without the Discipline counts as 0. For example, *difficulty = target's Stamina + Fortitude* is Target trait **Stamina**, + trait **Fortitude**. The system doesn't add Fortitude to Stamina, so pick both.
+
+**Resist pools the system can't roll by itself** (any pool with a Discipline or **Willpower (current)**) are added up by the module and rolled as a fixed pool. Wound penalties apply, except for Willpower and Virtue pools. The roll still opens the adjust step for specialties and bonus dice, and the chat card shows the breakdown, e.g. "Stamina 3 + Fortitude 2".
 
 The setup is stored per **Discipline name + level** for the whole world. Configure Dominate level 2 once, and every character's Dominate uses it, including copies bought later. A summary line under the power shows the setup to everyone.
 

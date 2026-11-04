@@ -1,12 +1,13 @@
 import { registerElder } from './elder.mjs';
 import { registerPaths } from './paths.mjs';
 import { setupExtended, checkLock, recordRoll, renderTracker, onExtendedSocket, takeForcedTarget } from './extended.mjs';
-import { registerRequests, renderRequest, onRequestSocket, openRequestWindow, createRequest } from './requests.mjs';
+import { registerRequests, renderRequest, onRequestSocket, openRequestWindow, createRequest, traitDice } from './requests.mjs';
 import { decorateCostInputs } from './cost.mjs';
 import { registerOverrides, decorateRow, applyStats, editStats, allStats } from './overrides.mjs';
 import {
   MODULE_ID, POWER_ITEM_TYPES, ELDER_TYPE, powerKey, traitLabel, normalizeConfig, isActive,
   targetDifficulty, resistDifficulty, contest, findPower, summarize, titleCase, defaultConfig, needsTarget,
+  withDisciplines, disciplineKey, isDisciplineTrait, DISCIPLINE_LABELS,
 } from './logic.mjs';
 
 const SYSTEM_ID = 'vtm-v20';
@@ -33,19 +34,34 @@ async function setConfig(type, name, lvl, cfg) {
   await game.settings.set(MODULE_ID, 'configs', all);
 }
 
-function traitOptions() {
+// Discipline names for trait pickers: world items + the system compendium,
+// loaded once at ready (pickers are built synchronously)
+async function loadDisciplineNames() {
+  const names = new Set(game.items.filter(i => i.type === 'discipline').map(i => i.name));
+  const pack = game.packs.get('vtm-v20.disciplines');
+  if (pack) for (const e of await pack.getIndex()) if (e.type === 'discipline') names.add(e.name);
+  for (const a of game.actors) for (const i of a.items) if (i.type === 'discipline') names.add(i.name);
+  DISCIPLINE_LABELS.clear();
+  for (const n of [...names].sort((a, b) => a.localeCompare(b))) DISCIPLINE_LABELS.set(disciplineKey(n), n);
+}
+
+function traitOptions({ disciplines = false } = {}) {
   const out = [];
   const V = CONFIG.VTM ?? {};
   for (const [group, list] of Object.entries(V.attributes ?? {})) for (const k of list) out.push({ key: `attributes.${k}`, group: `Attributes (${titleCase(group)})` });
   for (const [group, list] of Object.entries(V.abilities ?? {})) for (const k of list) out.push({ key: `abilities.${k}`, group: titleCase(group) });
   for (const k of ['conscience', 'selfControl', 'courage']) out.push({ key: `virtues.${k}`, group: 'Virtues' });
   out.push({ key: 'willpowerCurrent', group: 'Other' }, { key: 'willpower', group: 'Other' }, { key: 'humanity', group: 'Other' });
+  if (disciplines) for (const key of DISCIPLINE_LABELS.keys()) out.push({ key, group: 'Disciplines' });
   return out;
 }
 
-function traitSelect(name, value, { allowEmpty = true } = {}) {
+function traitSelect(name, value, { allowEmpty = true, disciplines = false } = {}) {
   const groups = {};
-  for (const o of traitOptions()) (groups[o.group] ??= []).push(o);
+  const opts = traitOptions({ disciplines });
+  // keep a saved Discipline choice visible even if that Discipline isn't listed
+  if (value && isDisciplineTrait(value) && !opts.some(o => o.key === value)) opts.push({ key: value, group: 'Disciplines' });
+  for (const o of opts) (groups[o.group] ??= []).push(o);
   return `<select name="${name}">${allowEmpty ? `<option value="" ${!value ? 'selected' : ''}>—</option>` : ''}
     ${Object.entries(groups).map(([g, list]) => `<optgroup label="${esc(g)}">${list.map(o =>
       `<option value="${o.key}" ${o.key === value ? 'selected' : ''}>${esc(traitLabel(o.key))}</option>`).join('')}</optgroup>`).join('')}
@@ -73,7 +89,7 @@ async function wrappedRoll(actor, opts = {}) {
   let difficulty = opts.difficulty;
   let label = opts.label;
   if (target && cfg.diff.mode === 'target') {
-    difficulty = targetDifficulty(cfg, target.system);
+    difficulty = targetDifficulty(cfg, withDisciplines(target));
     label = `${opts.label} vs ${target.name}`;
   }
   const result = await originalRoll(actor, { ...opts, difficulty, label });
@@ -92,7 +108,7 @@ async function wrappedRoll(actor, opts = {}) {
 // Resisted rolls
 
 async function postResistCard(attacker, target, power, cfg, atkTotal) {
-  const resist = { traits: cfg.resist.traits.filter(Boolean), difficulty: resistDifficulty(cfg, attacker.system, atkTotal) };
+  const resist = { traits: cfg.resist.traits.filter(Boolean), difficulty: resistDifficulty(cfg, withDisciplines(attacker), atkTotal) };
   const why = cfg.resist.diffMode === 'successes' ? ` (${esc(attacker.name)}'s successes${cfg.resist.mod ? ` ${cfg.resist.mod > 0 ? '+' : '−'} ${Math.abs(cfg.resist.mod)}` : ''})` : '';
   const pool = resist.traits.map(traitLabel).join(' + ');
   await ChatMessage.create({
@@ -113,6 +129,25 @@ function canResist(target) {
   return game.user.isGM || !!target?.isOwner;
 }
 
+// The system's roll dialog only knows Attributes, Abilities, Virtues,
+// Willpower (permanent) and Humanity. Pools with anything else (Disciplines,
+// current Willpower) are totalled here and rolled as a fixed pool, with the
+// adjust step so specialties and bonus dice still apply.
+const SYSTEM_KEYS = k => !k || /^(attributes|abilities|virtues)\./.test(k) || k === 'willpower' || k === 'humanity';
+function resistRollOptions(target, f) {
+  const traits = (f.resist.traits ?? []).filter(Boolean);
+  const label = `Resist ${f.power}`;
+  if (traits.every(SYSTEM_KEYS)) return { trait: traits[0] ?? '', trait2: traits[1] ?? '', label, difficulty: f.resist.difficulty };
+  const vals = traits.map(k => traitDice(target, k));
+  const woundImmune = traits.every(k => k.startsWith('virtues.') || k === 'willpower' || k === 'willpowerCurrent');
+  const wp = woundImmune ? 0 : Number(target.system?.woundPenalty) || 0;
+  const note = traits.map((k, i) => `${traitLabel(k)} ${vals[i]}`).join(' + ') + (wp ? ` (wound ${wp})` : '');
+  return {
+    label: `${label} (${note})`, poolNote: note, difficulty: f.resist.difficulty, adjust: true,
+    poolOverride: Math.max(vals.reduce((a, b) => a + b, 0) + wp, 1),
+  };
+}
+
 async function rollResist(message) {
   const f = flagsOf(message);
   if (!f || f.resolved || busy.has(message.id)) return;
@@ -121,10 +156,7 @@ async function rollResist(message) {
   if (!canResist(target)) return;
   busy.add(message.id);
   try {
-    const res = await originalRoll(target, {
-      trait: f.resist.traits[0] ?? '', trait2: f.resist.traits[1] ?? '',
-      label: `Resist ${f.power}`, difficulty: f.resist.difficulty,
-    });
+    const res = await originalRoll(target, resistRollOptions(target, f));
     if (!res) return;
     const c = contest(f.atkTotal, res.total);
     const verdict = c.winner === 'attacker'
@@ -206,23 +238,23 @@ async function editConfig(item, lvl) {
         <option value="fixed" ${cfg.diff.mode === 'fixed' ? 'selected' : ''}>Fixed (the power's Diff box)</option>
         <option value="target" ${cfg.diff.mode === 'target' ? 'selected' : ''}>From the target's traits</option></select></label>
       <div class="vpw-dep" data-when="diffMode=target">
-      <label class="vpw-row">Target trait ${traitSelect('diffT1', cfg.diff.traits[0], { allowEmpty: false })}</label>
-      <label class="vpw-row">+ trait ${traitSelect('diffT2', cfg.diff.traits[1])}</label>
+      <label class="vpw-row">Target trait ${traitSelect('diffT1', cfg.diff.traits[0], { allowEmpty: false, disciplines: true })}</label>
+      <label class="vpw-row">+ trait ${traitSelect('diffT2', cfg.diff.traits[1], { disciplines: true })}</label>
       <label class="vpw-row">Modifier <input type="number" name="diffMod" value="${cfg.diff.mod}" step="1"></label></div>
     </fieldset>
     <fieldset><legend>Resisted roll</legend>
       <label class="vpw-check"><input type="checkbox" name="resEnabled" ${cfg.resist.enabled ? 'checked' : ''}> Target rolls to resist</label>
       <div class="vpw-dep" data-when="resEnabled">
-      <label class="vpw-row">Resist trait ${traitSelect('resT1', cfg.resist.traits[0], { allowEmpty: false })}</label>
-      <label class="vpw-row">+ trait ${traitSelect('resT2', cfg.resist.traits[1])}</label>
+      <label class="vpw-row">Resist trait ${traitSelect('resT1', cfg.resist.traits[0], { allowEmpty: false, disciplines: true })}</label>
+      <label class="vpw-row">+ trait ${traitSelect('resT2', cfg.resist.traits[1], { disciplines: true })}</label>
       <label class="vpw-row">Resist difficulty <select name="resDiffMode">
         <option value="fixed" ${cfg.resist.diffMode === 'fixed' ? 'selected' : ''}>Fixed number</option>
         <option value="attacker" ${cfg.resist.diffMode === 'attacker' ? 'selected' : ''}>From the attacker's traits</option>
         <option value="successes" ${cfg.resist.diffMode === 'successes' ? 'selected' : ''}>The attacker's successes</option></select></label>
       <label class="vpw-row vpw-dep" data-when="resDiffMode=fixed">Fixed difficulty <input type="number" name="resDiff" value="${cfg.resist.diff}" min="2" max="10"></label>
       <div class="vpw-dep" data-when="resDiffMode=attacker">
-      <label class="vpw-row">Attacker trait ${traitSelect('resA1', cfg.resist.attackerTraits[0])}</label>
-      <label class="vpw-row">+ trait ${traitSelect('resA2', cfg.resist.attackerTraits[1])}</label></div>
+      <label class="vpw-row">Attacker trait ${traitSelect('resA1', cfg.resist.attackerTraits[0], { disciplines: true })}</label>
+      <label class="vpw-row">+ trait ${traitSelect('resA2', cfg.resist.attackerTraits[1], { disciplines: true })}</label></div>
       <label class="vpw-row vpw-dep" data-when="resDiffMode!=fixed">Modifier <input type="number" name="resMod" value="${cfg.resist.mod}" step="1"></label>
       <p class="vpw-sub vpw-dep" data-when="resDiffMode=successes">Difficulty = the attacker's successes + modifier, kept between 2 and 10.</p></div>
     </fieldset>
@@ -234,8 +266,8 @@ async function editConfig(item, lvl) {
         <option value="self" ${cfg.extended.goalMode === 'self' ? 'selected' : ''}>The roller's own traits</option>
         <option value="fixed" ${cfg.extended.goalMode === 'fixed' ? 'selected' : ''}>A fixed number</option></select></label>
       <div class="vpw-dep" data-when="extMode!=fixed">
-      <label class="vpw-row">Goal trait ${traitSelect('extT1', cfg.extended.traits[0], { allowEmpty: false })}</label>
-      <label class="vpw-row">+ trait ${traitSelect('extT2', cfg.extended.traits[1])}</label>
+      <label class="vpw-row">Goal trait ${traitSelect('extT1', cfg.extended.traits[0], { allowEmpty: false, disciplines: true })}</label>
+      <label class="vpw-row">+ trait ${traitSelect('extT2', cfg.extended.traits[1], { disciplines: true })}</label>
       <label class="vpw-row">Modifier <input type="number" name="extMod" value="${cfg.extended.mod}" step="1"></label></div>
       <label class="vpw-row vpw-dep" data-when="extMode=fixed">Fixed goal <input type="number" name="extGoal" value="${cfg.extended.goal}" min="1"></label>
       <label class="vpw-row">On failure <select name="extFail">
@@ -360,4 +392,6 @@ Hooks.once('ready', () => {
   originalRoll = game.vtm.rollDicePool.bind(game.vtm);
   game.vtm.rollDicePool = wrappedRoll;
   game.socket.on(SOCKET, onSocket);
+  loadDisciplineNames().catch(err => console.warn(`${MODULE_ID} | Discipline list not loaded`, err));
+  Hooks.on('createItem', item => { if (item.type === 'discipline' && !item.pack) DISCIPLINE_LABELS.set(disciplineKey(item.name), item.name); });
 });

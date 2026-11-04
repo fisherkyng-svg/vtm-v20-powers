@@ -528,3 +528,63 @@ test('Elder power: cost blocks when short, spends after confirm, cancel rolls no
   dlg.wait = origWait;
   elderA.system.cost = '';
 });
+
+// ---- Discipline ratings as traits ------------------------------------------
+test('difficulty = target Stamina + Fortitude reads the Discipline item', async () => {
+  const { withDisciplines, traitValue, traitLabel, disciplineKey, DISCIPLINE_LABELS } = await import('../scripts/logic.mjs');
+  marcus.system.attributes.stamina = 3;
+  marcus.items.push({ type: 'discipline', name: 'Fortitude', system: { level: 2 } });
+  assert.equal(traitValue(withDisciplines(marcus), 'disciplines.fortitude'), 2);
+  assert.equal(traitValue(withDisciplines(vera), 'disciplines.fortitude'), 0); // doesn't have it
+  DISCIPLINE_LABELS.set(disciplineKey('First Tongue'), 'First Tongue');
+  assert.equal(traitLabel('disciplines.first tongue'), 'First Tongue');
+  as(gm);
+  await api.setConfig('discipline', 'Dominate', 'lvl1', { diff: { mode: 'target', traits: ['attributes.stamina', 'disciplines.fortitude'], mod: 0 } });
+  as(p1); currentTarget = { actor: marcus };
+  await game.vtm.rollDicePool(lucien, { trait: 'attributes.manipulation', label: 'Dominate: Command', difficulty: 6 });
+  assert.equal(rollCalls.at(-1).difficulty, 5);
+  as(gm); await api.setConfig('discipline', 'Dominate', 'lvl1', null);
+});
+
+test('resist pool with a Discipline / current Willpower rolls as a computed fixed pool', async () => {
+  as(gm);
+  marcus.system.woundPenalty = -1;
+  await api.setConfig('discipline', 'Dominate', 'lvl1', { resist: { enabled: true, traits: ['attributes.stamina', 'disciplines.fortitude'], diffMode: 'fixed', diff: 7 } });
+  as(p1); currentTarget = { actor: marcus };
+  rollScript.push({ total: 2, outcome: 'success' });
+  await game.vtm.rollDicePool(lucien, { trait: 'attributes.manipulation', label: 'Dominate: Command', difficulty: 6 });
+  as(gm);
+  rollScript.push({ total: 1, outcome: 'success' });
+  renderSlot(lastResist())._btn.click({ preventDefault() {} });
+  await new Promise(r => setTimeout(r, 0));
+  const call = rollCalls.at(-1);
+  assert.equal(call.actor, 'Marcus');
+  assert.equal(call.poolOverride, 4); // Stamina 3 + Fortitude 2 - wound 1
+  assert.equal(call.adjust, true);
+  assert.equal(call.difficulty, 7);
+  assert.match(call.label, /Stamina 3 \+ Fortitude 2 \(wound -1\)/);
+
+  await api.setConfig('discipline', 'Dominate', 'lvl1', { resist: { enabled: true, traits: ['willpowerCurrent', ''], diffMode: 'fixed', diff: 6 } });
+  marcus.system.willpower.value = 5;
+  as(p1);
+  rollScript.push({ total: 2, outcome: 'success' });
+  await game.vtm.rollDicePool(lucien, { trait: 'attributes.manipulation', label: 'Dominate: Command', difficulty: 6 });
+  as(gm);
+  rollScript.push({ total: 1, outcome: 'success' });
+  renderSlot(lastResist())._btn.click({ preventDefault() {} });
+  await new Promise(r => setTimeout(r, 0));
+  assert.equal(rollCalls.at(-1).poolOverride, 5); // Willpower ignores wounds
+
+  await api.setConfig('discipline', 'Dominate', 'lvl1', { resist: { enabled: true, traits: ['willpower', ''], diffMode: 'fixed', diff: 6 } });
+  as(p1);
+  rollScript.push({ total: 2, outcome: 'success' });
+  await game.vtm.rollDicePool(lucien, { trait: 'attributes.manipulation', label: 'Dominate: Command', difficulty: 6 });
+  as(gm);
+  rollScript.push({ total: 1, outcome: 'success' });
+  renderSlot(lastResist())._btn.click({ preventDefault() {} });
+  await new Promise(r => setTimeout(r, 0));
+  assert.equal(rollCalls.at(-1).trait, 'willpower'); // system-known keys still use the system dialog
+  assert.equal(rollCalls.at(-1).poolOverride, undefined);
+  await api.setConfig('discipline', 'Dominate', 'lvl1', null);
+  marcus.system.woundPenalty = 0;
+});

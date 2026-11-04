@@ -1,6 +1,6 @@
 // Extended actions: one chat tracker card per roller + power + target that
 // accumulates successes toward a goal, with reset and scene-lock rules.
-import { MODULE_ID, advanceExtended, extendedGoal, extendedKey } from './logic.mjs';
+import { MODULE_ID, advanceExtended, extendedGoal, extendedKey, withDisciplines } from './logic.mjs';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const flagsOf = msg => msg?.flags?.[MODULE_ID];
@@ -67,7 +67,7 @@ export async function recordRoll(actor, target, match, cfg, opts, result) {
     return writeState(msg, stateUpdate(state));
   }
 
-  const goal = extendedGoal(cfg, target?.system, actor.system);
+  const goal = extendedGoal(cfg, target ? withDisciplines(target) : null, withDisciplines(actor));
   if (goal === null) return;
   const state = advanceExtended({ total: 0, goal, status: 'open', log: [] }, result, cfg);
   const savedOpts = Object.fromEntries(SAFE_OPTS.filter(k => opts[k] !== undefined).map(k => [k, opts[k]]));
