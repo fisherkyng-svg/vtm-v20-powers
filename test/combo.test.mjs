@@ -52,3 +52,15 @@ test('findPower resolves combination labels to a combo config address', () => {
   assert.equal(hit.lvl, 'combo');
   assert.deepEqual(hit.cfg, ['combo', 'Test Combo', 'combo']);
 });
+
+test('system Willpower card is suppressed once, for the same actor and amount only', async () => {
+  const C = await import('../scripts/cost.mjs');
+  const card = n => `<span class="roll-label">Spends ${n} Willpower</span>`;
+  C._setWpSuppress({ actor: 'a1', wp: 1, until: 1000 });
+  assert.equal(C.shouldSuppressWpCard('a2', card(1), 500), false);
+  assert.equal(C.shouldSuppressWpCard('a1', card(2), 500), false);
+  assert.equal(C.shouldSuppressWpCard('a1', card(1), 2000), false); // expired
+  C._setWpSuppress({ actor: 'a1', wp: 1, until: 1000 });
+  assert.equal(C.shouldSuppressWpCard('a1', card(1), 500), true);
+  assert.equal(C.shouldSuppressWpCard('a1', card(1), 500), false); // one-shot
+});

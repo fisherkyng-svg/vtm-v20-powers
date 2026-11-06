@@ -97,6 +97,26 @@ export function decorateCostInputs(item, root, keepEnabled) {
 // Spend, matching the system's confirm-and-spend behaviour.
 // Returns { blood, wp } spent, or null when blocked or cancelled.
 
+// The system posts a public "Spends N Willpower" card on every Willpower drop.
+// When a power spends Willpower here, the power's own card already reports it,
+// so that one system card is cancelled. One-shot and time-limited, and only for
+// the same character and amount.
+let suppressWpCard = null;
+export function shouldSuppressWpCard(speakerActorId, content, now = Date.now()) {
+  const s = suppressWpCard;
+  if (!s || now > s.until || speakerActorId !== s.actor) return false;
+  if (!String(content ?? '').includes(`Spends ${s.wp} Willpower`)) return false;
+  suppressWpCard = null;
+  return true;
+}
+export const _setWpSuppress = v => { suppressWpCard = v; }; // tests
+if (typeof Hooks !== 'undefined') {
+  Hooks.on('preCreateChatMessage', (doc, data) => {
+    const speaker = data?.speaker?.actor ?? doc?.speaker?.actor;
+    if (shouldSuppressWpCard(speaker, data?.content ?? doc?.content)) return false;
+  });
+}
+
 export async function spendCost(actor, costStr, powerName) {
   const cost = parseCost(costStr);
   if (!cost) return { blood: 0, wp: 0 };
@@ -124,7 +144,11 @@ export async function spendCost(actor, costStr, powerName) {
   if (!res || typeof res !== 'object') return null;
   const update = {};
   if (res.blood) update['system.blood.value'] = bloodNow - res.blood;
-  if (cost.wp) update['system.willpower.value'] = wpNow - cost.wp;
+  if (cost.wp) {
+    update['system.willpower.value'] = wpNow - cost.wp;
+    // Our own card reports the spend with the power's name; skip the system's generic one
+    suppressWpCard = { actor: actor.id, wp: cost.wp, until: Date.now() + 5000 };
+  }
   if (Object.keys(update).length) await actor.update(update);
   return { blood: res.blood, wp: cost.wp };
 }
