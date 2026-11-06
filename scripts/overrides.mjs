@@ -222,7 +222,7 @@ function permanentWillpowerList() {
     if (cfg?.extended?.enabled && cfg.extended.goalMode !== 'fixed' && cfg.extended.traits?.includes('willpower')) uses.push('extended goal');
     if (!uses.length) continue;
     const [type, name, lvl] = key.split('|');
-    const where = lvl === 'elder' ? `${name} (Elder)` : `${name} ${lvl.replace('lvl', '')}`;
+    const where = lvl === 'elder' ? `${name} (Elder)` : lvl === 'combo' ? `${name} (Combination)` : `${name} ${lvl.replace('lvl', '')}`;
     rows.push(`<li>${esc(where)} · ${uses.join(', ')}</li>`);
   }
   if (!rows.length) return '';

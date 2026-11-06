@@ -81,6 +81,7 @@ for (const u of [p1, p2, gm]) Object.defineProperty(u, 'targets', { get: () => (
 
 await import('../scripts/main.mjs');
 const { rollElder } = await import('../scripts/elder.mjs');
+const { useCombo } = await import('../scripts/combo.mjs');
 Hooks.callAll('init');
 Hooks.callAll('ready');
 const api = globalThis.__mod.api;
@@ -237,6 +238,70 @@ test('Elder power uses its own contest config (resisted)', async () => {
   const card = lastResist();
   assert.equal(card.flags['vtm-v20-powers'].power, 'Dominate: Mass Mesmerize');
   assert.equal(card.flags['vtm-v20-powers'].atkTotal, 4);
+});
+
+// ---- combination powers (invented test data) -------------------------------
+const comboOk = { id: 'cA', type: 'vtm-v20-powers.comboPower', name: 'Test Pairing', parent: lucien,
+  system: { requirements: [{ discipline: 'Dominate', level: 3 }, { discipline: 'dominate', level: 2 }], xpCost: 12, primary: 'attributes.manipulation', secondary: 'abilities.intimidation', difficulty: 8, cost: '', clans: '' } };
+const comboShort = { id: 'cB', type: 'vtm-v20-powers.comboPower', name: 'Test Shortfall', parent: lucien,
+  system: { requirements: [{ discipline: 'Dominate', level: 3 }, { discipline: 'Presence', level: 2 }], xpCost: 15, primary: '', secondary: '', difficulty: 6, cost: '', clans: '' } };
+lucien.items.push(comboOk, comboShort);
+
+test('Combination Power type registers its data model and sheet', () => {
+  assert.ok(CONFIG.Item.dataModels['vtm-v20-powers.comboPower']);
+  assert.ok(globalThis.__sheetRegs.some(a => a[3].types[0] === 'vtm-v20-powers.comboPower'));
+});
+
+test('Combination roll: requirements met, rolls with its own label and difficulty', async () => {
+  as(p1); currentTarget = null;
+  await useCombo(comboOk);
+  assert.equal(rollCalls.at(-1).label, 'Combination: Test Pairing');
+  assert.equal(rollCalls.at(-1).difficulty, 8);
+});
+
+test('Combination roll: missing Discipline blocks players, Storyteller can still use it', async () => {
+  as(p1);
+  const n = rollCalls.length, m = messages.length;
+  await useCombo(comboShort);
+  assert.equal(messages.length, m);
+  assert.match(notes.at(-1), /Presence 2 \(has 0\)/);
+  as(gm);
+  await useCombo(comboShort); // no roll traits: posts a card instead of rolling
+  assert.equal(rollCalls.length, n);
+  assert.match(messages.at(-1).content, /Combination power \(Dominate 3, Presence 2\)/);
+});
+
+test('Combination power uses its own contest config', async () => {
+  as(gm);
+  await api.setConfig('combo', 'Test Pairing', 'combo', { diff: { mode: 'target', traits: ['willpower', ''] }, resist: { enabled: true, traits: ['willpower', ''], diff: 6 } });
+  as(p1); currentTarget = { actor: marcus };
+  rollScript.push({ total: 3, outcome: 'success' });
+  await useCombo(comboOk);
+  assert.equal(rollCalls.at(-1).difficulty, 8); // Marcus Willpower
+  assert.equal(lastResist().flags['vtm-v20-powers'].power, 'Combination: Test Pairing');
+  as(gm);
+  await api.setConfig('combo', 'Test Pairing', 'combo', null);
+});
+
+test('Clan restriction: GM-only note when a restricted item lands on another clan', async () => {
+  as(p1);
+  lucien.system.clan = 'Ventrue';
+  lucien.documentName = 'Actor';
+  const m = messages.length;
+  const merit = { type: 'merit', name: 'Test Merit', parent: lucien, flags: { 'vtm-v20-powers': { clans: 'Nosferatu' } } };
+  for (const f of hooks.createItem) await f(merit, {}, 'p1');
+  const note = messages.at(-1);
+  assert.equal(messages.length, m + 1);
+  assert.deepEqual(note.whisper, ['gm']);
+  assert.match(note.content, /Nosferatu only/);
+  // Allowed clan, unrestricted item, or another user's create: no note
+  for (const f of hooks.createItem) await f({ ...merit, flags: { 'vtm-v20-powers': { clans: 'Ventrue' } } }, {}, 'p1');
+  for (const f of hooks.createItem) await f({ ...merit, flags: {} }, {}, 'p1');
+  for (const f of hooks.createItem) await f(merit, {}, 'p2');
+  assert.equal(messages.length, m + 1);
+  // Combination powers carry the restriction on the item itself
+  for (const f of hooks.createItem) await f({ ...comboOk, system: { ...comboOk.system, clans: 'Gangrel' } }, {}, 'p1');
+  assert.match(messages.at(-1).content, /Gangrel only/);
 });
 
 // ---- extended actions ------------------------------------------------------

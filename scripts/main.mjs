@@ -1,11 +1,12 @@
 import { registerElder } from './elder.mjs';
+import { registerCombo, itemClans } from './combo.mjs';
 import { registerPaths } from './paths.mjs';
 import { setupExtended, checkLock, recordRoll, renderTracker, onExtendedSocket, takeForcedTarget } from './extended.mjs';
 import { registerRequests, renderRequest, onRequestSocket, openRequestWindow, createRequest, traitDice } from './requests.mjs';
 import { decorateCostInputs } from './cost.mjs';
 import { registerOverrides, decorateRow, applyStats, editStats, allStats } from './overrides.mjs';
 import {
-  MODULE_ID, POWER_ITEM_TYPES, ELDER_TYPE, powerKey, traitLabel, normalizeConfig, isActive,
+  MODULE_ID, POWER_ITEM_TYPES, ELDER_TYPE, COMBO_TYPE, powerKey, traitLabel, normalizeConfig, isActive,
   targetDifficulty, resistDifficulty, contest, findPower, summarize, titleCase, defaultConfig, needsTarget,
   withDisciplines, disciplineKey, isDisciplineTrait, DISCIPLINE_LABELS,
 } from './logic.mjs';
@@ -225,6 +226,7 @@ function onRenderMessage(message, html) {
 // Regular powers are addressed by Discipline + level; Elder powers by their own name
 function configAddress(item, lvl) {
   if (item.type === ELDER_TYPE) return { addr: ['elder', item.name, 'elder'], title: `${item.system.discipline || 'Elder'} · ${item.name}`, scope: `the Elder power <b>${esc(item.name)}</b> on every character` };
+  if (item.type === COMBO_TYPE) return { addr: ['combo', item.name, 'combo'], title: `Combination · ${item.name}`, scope: `the Combination power <b>${esc(item.name)}</b> on every character` };
   const power = item.system.powers?.[lvl]?.name || lvl.replace('lvl', 'Level ');
   return { addr: [item.type, item.name, lvl], title: `${item.name} · ${power}`, scope: `<b>${esc(item.name)}</b> level ${lvl.replace('lvl', '')} on every character` };
 }
@@ -379,11 +381,12 @@ Hooks.once('init', () => {
     bindDependents(root);
   });
   registerElder({ getConfig, editConfig, traitSelect, summarize, keepEnabled });
+  registerCombo({ getConfig, editConfig, traitSelect, summarize, keepEnabled });
   registerPaths();
   registerOverrides({ traitSelect, keepEnabled, allConfigs });
   setupExtended({ SOCKET });
   registerRequests({ socket: SOCKET, bindDependents });
-  game.modules.get(MODULE_ID).api = { getConfig, setConfig, editConfig, rollResist, applyStats, editStats, allStats, requestRoll: openRequestWindow, createRequest };
+  game.modules.get(MODULE_ID).api = { itemClans, getConfig, setConfig, editConfig, rollResist, applyStats, editStats, allStats, requestRoll: openRequestWindow, createRequest };
 });
 
 Hooks.once('ready', () => {

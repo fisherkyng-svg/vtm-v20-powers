@@ -1,8 +1,8 @@
 {
   "id": "vtm-v20-powers",
   "title": "VtM V20 Powers",
-  "description": "Discipline powers and content for the Vampire: The Masquerade V20 system: difficulty from the targeted token's traits, resisted rolls, extended actions, Storyteller roll requests, Discipline stat overrides, Elder Power items for Discipline levels 6-10, and custom Paths of Enlightenment.",
-  "version": "0.8.1",
+  "description": "Discipline powers and content for the Vampire: The Masquerade V20 system: difficulty from the targeted token's traits, resisted rolls, extended actions, Storyteller roll requests, Discipline stat overrides, Elder Power items for Discipline levels 6-10, Combination powers with Discipline requirements and clan restrictions, and custom Paths of Enlightenment.",
+  "version": "0.9.0",
   "authors": [
     {
       "name": "CD"
@@ -43,6 +43,11 @@
       "enlightenmentPath": {
         "htmlFields": [
           "ethics"
+        ]
+      },
+      "comboPower": {
+        "htmlFields": [
+          "description"
         ]
       }
     }

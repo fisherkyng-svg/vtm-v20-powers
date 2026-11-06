@@ -107,3 +107,19 @@ label.vpw-dep { flex-direction: row; }
 .vpw-cost-btn { flex: 0 0 auto; min-height: 28px; font-size: 12px; padding: 0 6px; white-space: nowrap; cursor: pointer; }
 .vpw-cost-btn.vpw-cost-warn { color: #b5502b; border-color: #b5502b; }
 .vpw-cost-preview { font-size: 13px; margin: 4px 0 0; }
+
+/* Combination powers */
+.vpw-combo-reqs { display: flex; flex-direction: column; gap: 4px; }
+.vpw-combo-req { display: flex; align-items: center; gap: 6px; }
+.vpw-combo-req input[type=text] { flex: 1; min-width: 0; }
+.vpw-combo-req select { flex: 0 0 56px; }
+.vpw-combo-req button { flex: 0 0 auto; min-height: 28px; width: 32px; }
+.vpw-add-req { align-self: flex-start; min-height: 28px; font-size: 13px; }
+.vpw-combo-list { display: flex; flex-direction: column; gap: 2px; margin: 6px 0 4px; }
+.vpw-combo-title { font-variant: small-caps; letter-spacing: 1px; opacity: 0.85; margin-bottom: 2px; }
+.vpw-combo-row { flex-wrap: wrap; }
+.vpw-combo-needs { flex: 1; font-size: 12px; opacity: 0.85; }
+.vpw-clan-tag { display: inline-block; font-size: 12px; padding: 1px 8px; border: 1px solid currentColor; border-radius: 10px; opacity: 0.85; }
+.vpw-clan-row { display: flex; align-items: center; gap: 8px; margin: 4px 0 6px; font-size: 13px; }
+.vpw-clan-row label { display: flex; align-items: center; gap: 6px; flex: 1; }
+.vpw-clan-row input { flex: 1; min-width: 0; }

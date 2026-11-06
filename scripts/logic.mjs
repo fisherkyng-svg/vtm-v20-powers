@@ -6,6 +6,7 @@ export const POWER_LEVELS = ['lvl1', 'lvl2', 'lvl3', 'lvl4', 'lvl5'];
 export const POWER_ITEM_TYPES = ['discipline', 'path'];
 // Module-defined Item subtype (Foundry namespaces it with the module id)
 export const ELDER_TYPE = `${MODULE_ID}.elderPower`;
+export const COMBO_TYPE = `${MODULE_ID}.comboPower`;
 export const ELDER_MIN = 6;
 export const ELDER_MAX = 10;
 
@@ -133,6 +134,51 @@ export function contest(attackerTotal, defenderTotal) {
 }
 
 export function elderLabel(item) { return `${item.system?.discipline ?? ''}: ${item.name}`; }
+export function comboLabel(item) { return `Combination: ${item.name}`; }
+
+// ---------------------------------------------------------------------------
+// Combination powers
+
+// The actor's rating in each required Discipline, and whether it is met.
+// Case-insensitive name match; a missing Discipline counts as 0.
+export function comboStatus(items, requirements) {
+  const rating = name => Number((items ?? []).find(i => i.type === 'discipline' && lc(i.name) === lc(name))?.system?.level) || 0;
+  return (requirements ?? []).filter(r => r?.discipline).map(r => {
+    const need = Math.max(1, Number(r.level) || 1);
+    const have = rating(r.discipline);
+    return { discipline: r.discipline, level: need, have, ok: have >= need };
+  });
+}
+
+export const comboUsable = (items, requirements) => comboStatus(items, requirements).every(r => r.ok);
+
+export function requirementsText(requirements) {
+  return (requirements ?? []).filter(r => r?.discipline).map(r => `${r.discipline} ${Math.max(1, Number(r.level) || 1)}`).join(', ');
+}
+
+// ---------------------------------------------------------------------------
+// Clan restrictions ("Nosferatu" or "Nosferatu, Nosferatu Antitribu").
+// Empty means anyone. Antitribu of a listed clan count as that clan unless
+// the list names the antitribu on their own.
+
+export function parseClans(text) {
+  return String(text ?? '').split(/[,;/]/).map(s => s.trim()).filter(Boolean);
+}
+
+export function clanAllowed(clansText, actorClan) {
+  const list = parseClans(clansText).map(lc);
+  if (!list.length) return true;
+  const clan = lc(actorClan);
+  if (!clan) return false;
+  if (list.includes(clan)) return true;
+  const base = clan.replace(/\s+antitribu$/, '');
+  return base !== clan && list.includes(base);
+}
+
+export function clanTag(clansText) {
+  const list = parseClans(clansText);
+  return list.length ? `${list.join(' / ')} only` : '';
+}
 
 // Find which power a roll belongs to from the label "<Discipline>: <Power>".
 // Returns the config address too: regular powers by Discipline + level,
@@ -149,6 +195,9 @@ export function findPower(items, label) {
   for (const item of items ?? []) {
     if (item.type === ELDER_TYPE && elderLabel(item) === label) {
       return { item, lvl: 'elder', power: item.system, cfg: ['elder', item.name, 'elder'] };
+    }
+    if (item.type === COMBO_TYPE && comboLabel(item) === label) {
+      return { item, lvl: 'combo', power: item.system, cfg: ['combo', item.name, 'combo'] };
     }
   }
   return null;

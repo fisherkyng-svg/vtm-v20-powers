@@ -147,6 +147,25 @@ Overrides are keyed by Discipline name and level, the same as contest setups.
 - Buying dot 6+ includes picking one power of that level from your library.
 - Extra powers at a level the character already has cost the same as that dot again. For example, an in-clan Dominate level-6 power costs 25 XP.
 
+## Combination Powers
+
+Powers that need ratings in two or more Disciplines and are bought for a fixed XP cost. Each one is its own Item of type **Combination Power**, built like Elder Powers: the Storyteller keeps a library in the Items sidebar and drags them onto sheets.
+
+- **Create one:** Items sidebar → Create Item → Combination Power.
+- **Fields:** up to four requirements (Discipline + level), XP cost, roll traits and difficulty (leave Roll empty for powers that don't roll), blood/Willpower cost, clan restriction, source book, description.
+- **On the character sheet:** a *Combination Powers* block after the Disciplines. Each requirement shows green when met and red when not; the dice button rolls (or posts a card for no-roll powers) after spending the cost.
+- **Requirements not met:** players are blocked with the shortfall named ("needs Presence 2 (has 0)"); the Storyteller gets a warning and can roll anyway.
+- **Contest settings:** the **Contest…** button on the power's sheet, the same as Elder Powers. Settings are keyed to the power's name.
+- **Rolls** use the label `Combination: <name>`.
+
+## Clan restrictions
+
+Merits, Flaws and Combination Powers can be restricted to one or more clans (comma-separated, e.g. `Nosferatu` or `Nosferatu, Gangrel`). Antitribu of a listed clan count as that clan unless the list names the antitribu on their own.
+
+- **Merits / Flaws:** the GM sees a *Clan restriction* field at the top of the item sheet (stored as `flags.vtm-v20-powers.clans`). Players see a "Nosferatu only" tag.
+- **Combination Powers:** the *Clans* field on the sheet.
+- **Nothing is blocked.** When a restricted item lands on a character of another clan, the GM gets a private chat note naming the character, their clan and the item.
+
 ## Paths of Enlightenment
 
 **Create a path.** In the **Items** sidebar, click **Create Item** and choose type **Path of Enlightenment**. Set:
