@@ -1,7 +1,7 @@
 // Elder Power items: a module-defined Item subtype for Discipline powers at
 // levels 6-10. Several can exist per level; each is its own Item, so the
 // Storyteller builds a library in the Items sidebar and drags them onto sheets.
-import { spendCost, spentLine, attachCostButton } from './cost.mjs';
+import { spendCost, spentLine, attachCostButton, activationCard, confirmRemove } from './cost.mjs';
 import {
   MODULE_ID, ELDER_TYPE, ELDER_MIN, ELDER_MAX, elderLabel, elderPowersFor, elderUsable,
 } from './logic.mjs';
@@ -58,13 +58,13 @@ export async function rollElder(item) {
     // Powers with no roll just announce themselves
     return ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor }),
-      content: `<div class="vpw-card"><h3>${esc(elderLabel(item))}</h3><p>${esc(actor.name)} uses an Elder power (level ${sys.level}).</p>${line ? `<p class="vpw-sub">${esc(line)}</p>` : sys.cost ? `<p class="vpw-sub">Cost: ${esc(sys.cost)}</p>` : ''}</div>`,
+      content: activationCard(actor, elderLabel(item), { line, activated: true }),
     });
   }
   if (line) {
     await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor }),
-      content: `<div class="vpw-card"><h3>${esc(elderLabel(item))}</h3><p class="vpw-sub">${esc(line)}</p></div>`,
+      content: activationCard(actor, elderLabel(item), { line }),
       whisper: [...new Set([...game.users.filter(u => u.isGM).map(u => u.id), game.user.id])],
     });
   }
@@ -158,12 +158,13 @@ function defineSheet() {
 // ---------------------------------------------------------------------------
 // Character sheet: list Elder powers under their Discipline
 
-function elderRow(p, rating) {
+function elderRow(p, rating, owner) {
   const ok = elderUsable(rating, p.system.level);
   return `<div class="vpw-elder-row ${ok ? '' : 'vpw-locked'}" data-elder-id="${p.id}" draggable="true" title="Drag to the Items sidebar or another sheet">
     <span class="vpw-elder-lvl">${p.system.level}</span>
     <a class="vpw-elder-name" data-vpw="open" title="Open">${esc(p.name)}</a>
     <button type="button" data-vpw="roll" title="${ok ? (p.system.primary ? 'Roll' : 'Use') : `Needs ${p.system.discipline} ${p.system.level}`}"><i class="fas fa-dice-d20"></i></button>
+    ${owner ? '<button type="button" data-vpw="delete" title="Remove from character"><i class="fas fa-trash"></i></button>' : ''}
   </div>`;
 }
 
@@ -191,14 +192,14 @@ function onRenderActorSheet(app, element) {
     powers.forEach(p => placed.add(p.id));
     const list = document.createElement('div');
     list.className = 'vpw-elder-list';
-    list.innerHTML = powers.map(p => elderRow(p, disc.system.level)).join('');
+    list.innerHTML = powers.map(p => elderRow(p, disc.system.level, actor.isOwner)).join('');
     row.after(list);
   }
   const orphans = elders.filter(p => !placed.has(p.id));
   if (orphans.length && lastDiscRow) {
     const list = document.createElement('div');
     list.className = 'vpw-elder-list vpw-orphans';
-    list.innerHTML = `<div class="vpw-sub">Elder powers with no matching Discipline:</div>${orphans.map(p => elderRow(p, 0)).join('')}`;
+    list.innerHTML = `<div class="vpw-sub">Elder powers with no matching Discipline:</div>${orphans.map(p => elderRow(p, 0, actor.isOwner)).join('')}`;
     lastDiscRow.parentElement.append(list);
   }
   for (const list of root.querySelectorAll('.vpw-elder-list')) {
@@ -219,6 +220,7 @@ function onRenderActorSheet(app, element) {
       const item = actor.items.get(btn.closest('[data-elder-id]').dataset.elderId);
       if (!item) return;
       if (btn.dataset.vpw === 'open') item.sheet.render(true);
+      else if (btn.dataset.vpw === 'delete') confirmRemove(item);
       else rollElder(item);
     });
   }

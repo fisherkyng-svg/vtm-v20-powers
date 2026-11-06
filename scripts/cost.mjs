@@ -136,3 +136,38 @@ export function spentLine(actor, spent) {
   if (spent.wp) parts.push(`${spent.wp} Willpower spent (${actor.system.willpower?.value ?? 0} remaining)`);
   return parts.join(', ');
 }
+
+// ---------------------------------------------------------------------------
+// Activation card in the system's own chat layout (portrait, actor, power
+// name), the same card the system whispers for Discipline powers like Awe.
+
+export function activationCard(actor, label, { line = '', activated = false, detail = '' } = {}) {
+  const pf = actor?.getFlag?.('vtm-v20', 'portrait') || {};
+  const scale = pf.scale ?? 1;
+  let style = '';
+  if (scale > 1 || pf.offX || pf.offY) {
+    const r = 0.213 / scale;
+    style = `object-position: calc(50% + ${((pf.offX ?? 0) * r).toFixed(1)}px) calc(50% + ${((pf.offY ?? 0) * r).toFixed(1)}px); transform: scale(${scale});`;
+  }
+  return `<div class="vtm-roll">
+    <div class="roll-header">
+      <div class="roll-portrait-wrap"><img class="roll-portrait" src="${esc(actor?.img)}" style="${style}" /></div>
+      <div class="roll-info"><span class="roll-actor">${esc(actor?.name)}</span><span class="roll-label">${esc(label)}</span></div>
+    </div>
+    ${activated ? '<div class="roll-result"><span class="result-success">Activated</span></div>' : ''}
+    ${line ? `<div class="roll-meta">${esc(line)}</div>` : ''}
+    ${detail ? `<div class="roll-extra">${esc(detail)}</div>` : ''}
+  </div>`;
+}
+
+// Remove an owned power from a character, after a confirm
+export async function confirmRemove(item) {
+  const actor = item?.parent;
+  if (!actor?.isOwner) return;
+  const ok = await DialogV2().confirm({
+    window: { title: 'Remove power' },
+    content: `<p>Remove <b>${esc(item.name)}</b> from ${esc(actor.name)}?</p>`,
+    rejectClose: false,
+  });
+  if (ok) await item.delete();
+}

@@ -268,7 +268,8 @@ test('Combination roll: missing Discipline blocks players, Storyteller can still
   as(gm);
   await useCombo(comboShort); // no roll traits: posts a card instead of rolling
   assert.equal(rollCalls.length, n);
-  assert.match(messages.at(-1).content, /Combination power \(Dominate 3, Presence 2\)/);
+  assert.match(messages.at(-1).content, /roll-label">Combination: Test Shortfall</);
+  assert.match(messages.at(-1).content, /Activated/);
 });
 
 test('Combination power uses its own contest config', async () => {

@@ -7,7 +7,7 @@
 // system.clans; Merits and Flaws (system "merit" items) carry them in
 // flags.vtm-v20-powers.clans. A restricted item can still go on anyone; the
 // GM just gets a private note when it lands on a character of another clan.
-import { spendCost, spentLine, attachCostButton } from './cost.mjs';
+import { spendCost, spentLine, attachCostButton, activationCard, confirmRemove } from './cost.mjs';
 import {
   MODULE_ID, COMBO_TYPE, comboLabel, comboStatus, comboUsable, requirementsText,
   clanAllowed, clanTag,
@@ -60,17 +60,19 @@ export async function useCombo(item) {
   const spent = await spendCost(actor, sys.cost, item.name);
   if (!spent) return null;
   const line = spentLine(actor, spent);
+  const gmAndMe = [...new Set([...game.users.filter(u => u.isGM).map(u => u.id), game.user.id])];
   if (!sys.primary) {
+    // No roll: announce it to the table, the way the system shows an activated power
     return ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor }),
-      content: `<div class="vpw-card"><h3>${esc(item.name)}</h3><p>${esc(actor.name)} uses a Combination power (${esc(requirementsText(sys.requirements))}).</p>${line ? `<p class="vpw-sub">${esc(line)}</p>` : sys.cost ? `<p class="vpw-sub">Cost: ${esc(sys.cost)}</p>` : ''}</div>`,
+      content: activationCard(actor, comboLabel(item), { line, activated: true }),
     });
   }
   if (line) {
     await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor }),
-      content: `<div class="vpw-card"><h3>${esc(item.name)}</h3><p class="vpw-sub">${esc(line)}</p></div>`,
-      whisper: [...new Set([...game.users.filter(u => u.isGM).map(u => u.id), game.user.id])],
+      content: activationCard(actor, comboLabel(item), { line }),
+      whisper: gmAndMe,
     });
   }
   return game.vtm.rollDicePool(actor, {
@@ -210,6 +212,7 @@ function comboRow(p, actor) {
     <a class="vpw-elder-name" data-vpw="open" title="Open">${esc(p.name)}</a>
     <span class="vpw-combo-needs">${reqs}${tag ? ` · <em>${esc(tag)}</em>` : ''}</span>
     <button type="button" data-vpw="roll" title="${ok ? (p.system.primary ? 'Roll' : 'Use') : 'Requirements not met'}"><i class="fas fa-dice-d20"></i></button>
+    ${actor.isOwner ? '<button type="button" data-vpw="delete" title="Remove from character"><i class="fas fa-trash"></i></button>' : ''}
   </div>`;
 }
 
@@ -252,6 +255,7 @@ function onRenderActorSheet(app, element) {
     const item = actor.items.get(btn.closest('[data-combo-id]').dataset.comboId);
     if (!item) return;
     if (btn.dataset.vpw === 'open') item.sheet.render(true);
+    else if (btn.dataset.vpw === 'delete') confirmRemove(item);
     else useCombo(item);
   });
 }

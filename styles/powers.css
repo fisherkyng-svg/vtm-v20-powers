@@ -123,3 +123,6 @@ label.vpw-dep { flex-direction: row; }
 .vpw-clan-row { display: flex; align-items: center; gap: 8px; margin: 4px 0 6px; font-size: 13px; }
 .vpw-clan-row label { display: flex; align-items: center; gap: 6px; flex: 1; }
 .vpw-clan-row input { flex: 1; min-width: 0; }
+
+.vpw-elder-row button[data-vpw="delete"], .vpw-combo-row button[data-vpw="delete"] { opacity: 0.6; }
+.vpw-elder-row button[data-vpw="delete"]:hover, .vpw-combo-row button[data-vpw="delete"]:hover { opacity: 1; }
